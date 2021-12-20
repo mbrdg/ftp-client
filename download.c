@@ -5,7 +5,14 @@
 * RC @ L.EIC 2122
 */
 
-#include "url.h"
+#include <sys/socket.h>
+#include <sys/types.h>
+
+#include <stdio.h>
+#include <unistd.h>
+
+#include "connection.h"
+
 
 int
 main (int argc, char **argv)
@@ -15,13 +22,23 @@ main (int argc, char **argv)
                 return 1;
         }
 
-        struct url url;
-        url = parse_url(argv[1]);
+        URL url;
+        url = get_url(argv[1]);
 
-        printf("user: %s\n", url.usr);
-        printf("password: %s\n", url.pwd);
-        printf("host: %s\n", url.host);
-        printf("path: %s\n", url.path);
+        int sockfd[2];
+        sockfd[0] = start(&url);
+        get_response(sockfd[0]);
+
+        command(sockfd[0], USER, url.user);
+        get_response(sockfd[0]);
+
+        command(sockfd[0], PASS, url.pass);
+        get_response(sockfd[0]);
+
+        command(sockfd[0], PASV, "");
+        get_response(sockfd[0]);
+
+        stop(sockfd[0]);
 
         return 0;
 }

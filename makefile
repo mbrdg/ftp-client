@@ -1,9 +1,9 @@
 CC = cc
-CFLAGS = -Wall -Werror -pedantic -g -std=c99
+CFLAGS = -Wall -Werror -pedantic -g
 
 all: download
 
-download: url.c download.c
+download: connection.c download.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 .PHONY: clean
