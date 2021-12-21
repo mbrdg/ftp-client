@@ -8,37 +8,37 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
 
 #include "connection.h"
 
+/* globals */
+static const char
+usage[] = "usage: %s ftp://[<user>:<password>@]<host>/<url-path>\n";
 
 int
 main (int argc, char **argv)
 {
         if (argc != 2) {
-                fprintf(stderr, "usage: %s ftp://[<user>:<password>@]<host>/<url-path>\n", argv[0]);
+                fprintf(stderr, usage, argv[0]);
                 return 1;
         }
 
-        URL url;
-        url = get_url(argv[1]);
+        URL *url;
+        url = parse_url(argv[1]);
 
-        int sockfd[2];
-        sockfd[0] = start(&url);
-        get_response(sockfd[0]);
+        int init_fd;
+        init_fd = start_connection(url);
 
-        command(sockfd[0], USER, url.user);
-        get_response(sockfd[0]);
+        int in;
+        in = login(init_fd, url);
+        assert(in == 0);
 
-        command(sockfd[0], PASS, url.pass);
-        get_response(sockfd[0]);
-
-        command(sockfd[0], PASV, "");
-        get_response(sockfd[0]);
-
-        stop(sockfd[0]);
+        destroy_url(url);
+        end_connection(init_fd);
 
         return 0;
 }
+

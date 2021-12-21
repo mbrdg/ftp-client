@@ -21,34 +21,26 @@
 #include <string.h>
 #include <unistd.h>
 
-typedef enum {
-       USER,
-       PASS,
-       PASV,
-       RETR
-} CMD;
+typedef struct url URL;
 
-typedef struct {
-        char user[32];
-        char pass[32];
-        char host[32];
-        char path[256];
-} URL;
 
-URL
-get_url(const char *url);
+URL *
+parse_url(const char *url);
+
+void
+destroy_url(URL *u);
+
 
 int
-start(const URL *url);
+start_connection(const URL *u);
 
 void
-stop(int sockfd);
+end_connection(int sockfd);
 
-unsigned short
-get_response(int sockfd);
 
-void
-command(int sockfd, CMD cmd, const char *content);
+int
+login(int sockfd, const URL *u);
+
 
 #endif /* _CONNECTION_H_ */
 
