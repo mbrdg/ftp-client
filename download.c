@@ -26,18 +26,24 @@ main (int argc, char **argv)
                 return 1;
         }
 
-        URL *url;
-        url = parse_url(argv[1]);
+        URL *init, *retr;
+        int initfd, retrfd;
 
-        int init_fd;
-        init_fd = start_connection(url);
+        init = parse_url(argv[1], FTP_DEFAULT_PORT);
+        initfd = start_connection(init);
 
         int in;
-        in = login(init_fd, url);
+        in = login(initfd, init);
         assert(in == 0);
 
-        destroy_url(url);
-        end_connection(init_fd);
+        retr = passive(initfd, init);
+        retrfd = start_connection(retr);
+
+        destroy_url(retr);
+        end_connection(retrfd);
+
+        destroy_url(init);
+        end_connection(initfd);
 
         return 0;
 }
