@@ -43,12 +43,8 @@ response(int sockfd, char *info, size_t info_len)
 
         do {
                 assert(getline(&line, &len, fp) >= 0);
-                fprintf(stderr, "%s", line);
-                if (line[3] == ' ')
-                        goto parse_code;
-        } while(1);
+        } while(line[3] != ' ');
 
-parse_code:
         sscanf(line, "%hu [^\r\n]\r\n", &code);
         if (info != NULL)
                 strncpy(info, line, info_len);
@@ -73,13 +69,13 @@ URL *
 parse_url(const char *url, const unsigned short port)
 {
         URL *u;
-        u = malloc(sizeof(URL));
+        u = calloc(1, sizeof(URL));
         assert(u != NULL);
 
         char l[128];
-        sscanf(url, "ftp://%128[^/]%512s", l, u->path);
+        sscanf(url, "ftp://%128[^/]/%512s", l, u->path);
 
-        strncpy(u->host, l, sizeof(u->host));
+        strncpy(u->host, l, strlen(l));
         strncpy(u->user, "anonymous", 10);
         strncpy(u->pass, "anonymous", 10);
         u->port = port;
@@ -168,14 +164,12 @@ passive(int sockfd, const URL *u)
         sscanf(info, "%*[^(](%[^)]).\r\n", data);
         sscanf(data, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", &ip[0], &ip[1], &ip[2], &ip[3], &ip[4], &ip[5]);
 
-        char addr[32 + 64 + 17 + 1];
+        char addr[6 + 32 + 64 + 17 + 1];
         if (strncmp(u->user, "anonymous", 10) != 0)
-                snprintf(addr, sizeof(addr), "%s:%s@%hhu.%hhu.%hhu.%hhu", u->user, u->pass, ip[0], ip[1], ip[2], ip[3]);
+                snprintf(addr, sizeof(addr), "ftp://%s:%s@%hhu.%hhu.%hhu.%hhu", u->user, u->pass, ip[0], ip[1], ip[2], ip[3]);
         else
-                snprintf(addr, sizeof(addr), "%hhu.%hhu.%hhu.%hhu", ip[0], ip[1], ip[2], ip[3]);
-        fprintf(stderr, "%s\n", addr);
+                snprintf(addr, sizeof(addr), "ftp://%hhu.%hhu.%hhu.%hhu", ip[0], ip[1], ip[2], ip[3]);
 
-        // FIXME - something wrong when resolving the ip with the returned struct idk why
         return parse_url(addr, ip[4] * 256 + ip[5]);
 }
 
