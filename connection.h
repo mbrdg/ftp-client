@@ -21,35 +21,19 @@
 #include <string.h>
 #include <unistd.h>
 
-/* macros */
-#define FTP_DEFAULT_PORT 21
 
 /* typedefs */
 typedef struct url URL;
 
 
-URL *
-parse_url(const char *url, const unsigned short port);
+URL *get(const char *url);
 
-void
-destroy_url(URL *u);
+int start(const URL *u);
+void stop(int sockfd);
 
-
-int
-start_connection(const URL *u);
-
-void
-end_connection(int sockfd);
-
-
-int
-login(int sockfd_a, const URL *u);
-
-URL *
-passive(int sockfd_a, const URL *u);
-
-int
-retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp);
+int login(int sockfd_a, const URL *u);
+URL *passive(int sockfd_a, const URL *u);
+int retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp);
 
 #endif /* _CONNECTION_H_ */
 

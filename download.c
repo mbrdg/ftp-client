@@ -5,53 +5,47 @@
 * RC @ L.EIC 2122
 */
 
-#include <sys/socket.h>
-#include <sys/types.h>
-
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "connection.h"
 
-/* globals */
-static const char
-usage[] = "usage: %s ftp://[<user>:<password>@]<host>/<url-path>\n";
 
 int
 main (int argc, char **argv)
 {
         if (argc != 2) {
-                fprintf(stderr, usage, argv[0]);
+                fprintf(stderr, "usage: %s ftp://[<user>:<password>@]<host>/<url-path>\n", argv[0]);
                 return 1;
         }
 
-        int sockfd_a, sockfd_b;
-        URL *url_a, *url_b;
+        int sa, sb, in, retr;
+        URL *ua, *ub;
         FILE *f = NULL;
 
-        url_a = parse_url(argv[1], FTP_DEFAULT_PORT);
-        sockfd_a = start_connection(url_a);
-        assert(sockfd_a > 0);
+        ua = get(argv[1]);
+        sa = start(ua);
+        assert(sa > 0);
 
-        int in;
-        in = login(sockfd_a, url_a);
-        assert(!in);
+        in = login(sa, ua);
+        assert(in == 0);
 
-        url_b = passive(sockfd_a, url_a);
-        sockfd_b = start_connection(url_b);
-        assert(sockfd_b > 0);
+        ub = passive(sa, ua);
+        assert(ub != NULL);
+        sb = start(ub);
+        assert(sb > 0);
 
-        destroy_url(url_b);
+        free(ub);
 
-        int retr;
-        retr = retrieve(sockfd_a, sockfd_b, url_a, f);
-        assert(!retr);
+        retr = retrieve(sa, sb, ua, f);
+        free(ua);
+        assert(retr == 0);
 
-        destroy_url(url_a);
 
-        end_connection(sockfd_b);
-        end_connection(sockfd_a);
+        stop(sa);
+        stop(sb);
 
         return 0;
 }

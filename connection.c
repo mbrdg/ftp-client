@@ -8,6 +8,7 @@
 #include "connection.h"
 
 /* macros */
+#define FTP_PORT 21
 #define MAX_LINE_LEN 1024
 
 /* enums */
@@ -28,6 +29,26 @@ static const char cmds[][5] = { "USER", "PASS", "PASV", "RETR", "QUIT" };
 static const char anon[] = "anonymous";
 
 
+static URL *
+parse(const char *url, const unsigned short port)
+{
+        URL *u;
+        u = malloc(sizeof(URL));
+        assert(u != NULL);
+
+        char l[128];
+        sscanf(url, "ftp://%128[^/]/%512s", l, u->path);
+
+        strncpy(u->host, l, strlen(l));
+        strncpy(u->user, anon, 10);
+        strncpy(u->pass, "", 1);
+        u->port = port;
+
+        if (strchr(l, '@'))
+                sscanf(l, "%32[^:]:%64[^@]@%32s", u->user, u->pass, u->host);
+
+        return u;
+}
 
 static unsigned short
 response(int sockfd, char *info, size_t infolen)
@@ -63,38 +84,15 @@ command(int sockfd, CMD cmd, const char *arg)
 }
 
 
-
 URL *
-parse_url(const char *url, const unsigned short port)
+get(const char *url)
 {
-        URL *u;
-        u = malloc(sizeof(URL));
-        assert(u != NULL);
-
-        char l[128];
-        sscanf(url, "ftp://%128[^/]/%512s", l, u->path);
-
-        strncpy(u->host, l, strlen(l));
-        strncpy(u->user, anon, 10);
-        strncpy(u->pass, "", 1);
-        u->port = port;
-
-        if (strchr(l, '@'))
-                sscanf(l, "%32[^:]:%64[^@]@%32s", u->user, u->pass, u->host);
-
-        return u;
+        return parse(url, FTP_PORT);
 }
-
-void
-destroy_url(URL *u)
-{
-        free(u);
-}
-
 
 
 int
-start_connection(const URL *u)
+start(const URL *u)
 {
         struct addrinfo hints, *res, *r;
         int s, connection = 1;
@@ -107,11 +105,11 @@ start_connection(const URL *u)
 
         getaddrinfo(u->host, port, &hints, &res);
         for (r = res; r != NULL; r = res->ai_next) {
-                s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+                s = socket(r->ai_family, r->ai_socktype, r->ai_protocol);
                 if (s < 0)
                         continue;
 
-                connection = connect(s, res->ai_addr, res->ai_addrlen);
+                connection = connect(s, r->ai_addr, r->ai_addrlen);
                 if (!connection)
                         break;
                 close(s);
@@ -121,12 +119,11 @@ start_connection(const URL *u)
 }
 
 void
-end_connection(int sockfd)
+stop(int sockfd)
 {
         command(sockfd, QUIT, "");
         close(sockfd);
 }
-
 
 
 int
@@ -160,7 +157,7 @@ passive(int sockfd, const URL *u)
         sscanf(data, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", &ip[0], &ip[1], &ip[2], &ip[3], &ip[4], &ip[5]);
         snprintf(addr, sizeof(addr), "ftp://%hhu.%hhu.%hhu.%hhu", ip[0], ip[1], ip[2], ip[3]);
 
-        url = parse_url(addr, ip[4] * 256 + ip[5]);
+        url = parse(addr, ip[4] * 256 + ip[5]);
         if (strncmp(u->user, anon, strlen(anon)) != 0) {
                 strncpy(url->user, u->user, strlen(u->user));
                 strncpy(url->pass, u->pass, strlen(u->pass));
