@@ -188,6 +188,7 @@ retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp)
         iter += filesize % sizeof(fragment) != 0;
         for (i = 0; i < iter; i++) {
                 rb = recv(sockfd_b, fragment, sizeof(fragment), 0);
+                assert(rb >= 0);
                 fwrite(fragment, 1, rb, fp);
         }
 
