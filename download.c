@@ -26,24 +26,32 @@ main (int argc, char **argv)
                 return 1;
         }
 
-        URL *init, *retr;
-        int initfd, retrfd;
+        int sockfd_a, sockfd_b;
+        URL *url_a, *url_b;
+        FILE *f = NULL;
 
-        init = parse_url(argv[1], FTP_DEFAULT_PORT);
-        initfd = start_connection(init);
+        url_a = parse_url(argv[1], FTP_DEFAULT_PORT);
+        sockfd_a = start_connection(url_a);
+        assert(sockfd_a > 0);
 
         int in;
-        in = login(initfd, init);
-        assert(in == 0);
+        in = login(sockfd_a, url_a);
+        assert(!in);
 
-        retr = passive(initfd, init);
-        retrfd = start_connection(retr);
+        url_b = passive(sockfd_a, url_a);
+        sockfd_b = start_connection(url_b);
+        assert(sockfd_b > 0);
 
-        destroy_url(retr);
-        end_connection(retrfd);
+        destroy_url(url_b);
 
-        destroy_url(init);
-        end_connection(initfd);
+        int retr;
+        retr = retrieve(sockfd_a, sockfd_b, url_a, f);
+        assert(!retr);
+
+        destroy_url(url_a);
+
+        end_connection(sockfd_b);
+        end_connection(sockfd_a);
 
         return 0;
 }

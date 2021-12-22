@@ -43,10 +43,13 @@ end_connection(int sockfd);
 
 
 int
-login(int sockfd, const URL *u);
+login(int sockfd_a, const URL *u);
 
 URL *
-passive(int sockfd, const URL *u);
+passive(int sockfd_a, const URL *u);
+
+int
+retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp);
 
 #endif /* _CONNECTION_H_ */
 

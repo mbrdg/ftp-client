@@ -7,47 +7,47 @@
 
 #include "connection.h"
 
+/* macros */
+#define MAX_LINE_LEN 1024
 
 /* enums */
 typedef enum { USER, PASS, PASV, RETR, QUIT } CMD;
-typedef enum { ACCEPT = 220, PASS_SPEC = 331, LOGIN = 230, PASSIVE = 227 } CODE;
+typedef enum { OPEN = 150, ACCEPT = 220, TRANSFER = 226, PASSIVE = 227, LOGIN = 230, PASS_SPEC = 331 } CODE;
 
 /* structs */
 struct url {
-        char user[32];
-        char pass[64];
-        char host[32];
+        char           user[32];
+        char           pass[64];
+        char           host[32];
         unsigned short port;
-        char path[512];
+        char           path[512];
 };
 
 /* globals */
-static const char
-cmds[][5] = { "USER", "PASS", "PASV", "RETR", "QUIT" };
+static const char cmds[][5] = { "USER", "PASS", "PASV", "RETR", "QUIT" };
+static const char anon[] = "anonymous";
 
 
 
 static unsigned short
-response(int sockfd, char *info, size_t info_len)
+response(int sockfd, char *info, size_t infolen)
 {
         unsigned short code;
-        int tmp_sockfd;
+        int s;
         FILE *fp;
+        char line[MAX_LINE_LEN];
 
-        char* line = NULL;
-        size_t len = 0;
-
-        tmp_sockfd = dup(sockfd);
-        fp = fdopen(tmp_sockfd, "r");
+        s = dup(sockfd);
+        fp = fdopen(s, "r");
         assert(fp != NULL);
 
         do {
-                assert(getline(&line, &len, fp) >= 0);
+                assert(fgets(line, sizeof(line), fp));
         } while(line[3] != ' ');
 
         sscanf(line, "%hu [^\r\n]\r\n", &code);
         if (info != NULL)
-                strncpy(info, line, info_len);
+                strncpy(info, line, infolen);
 
         fclose(fp);
         return code;
@@ -56,28 +56,27 @@ response(int sockfd, char *info, size_t info_len)
 static void
 command(int sockfd, CMD cmd, const char *arg)
 {
-        char fmt[strlen(arg) + 4 + 4];
-        snprintf(fmt, sizeof(fmt), "%s %s\r\n", cmds[cmd], arg);
+        char fmt[strlen(arg)+8];
 
-        size_t wb;
-        wb = send(sockfd, fmt, strlen(fmt), 0);
-        assert(wb >= 0);
+        snprintf(fmt, sizeof(fmt), "%s %s\r\n", cmds[cmd], arg);
+        assert(send(sockfd, fmt, strlen(fmt), 0) >= 0);
 }
+
 
 
 URL *
 parse_url(const char *url, const unsigned short port)
 {
         URL *u;
-        u = calloc(1, sizeof(URL));
+        u = malloc(sizeof(URL));
         assert(u != NULL);
 
         char l[128];
         sscanf(url, "ftp://%128[^/]/%512s", l, u->path);
 
         strncpy(u->host, l, strlen(l));
-        strncpy(u->user, "anonymous", 10);
-        strncpy(u->pass, "anonymous", 10);
+        strncpy(u->user, anon, 10);
+        strncpy(u->pass, "", 1);
         u->port = port;
 
         if (strchr(l, '@'))
@@ -97,30 +96,28 @@ destroy_url(URL *u)
 int
 start_connection(const URL *u)
 {
-        struct hostent *h;
-        h = gethostbyname2(u->host, AF_INET);
-        assert(h != NULL);
+        struct addrinfo hints, *res, *r;
+        int s, connection = 1;
+        char port[6];
 
-        char ip[3 * 4 + 4 + 1];
-        snprintf(ip, sizeof(ip), inet_ntoa(*((struct in_addr *) h->h_addr)));
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        snprintf(port, sizeof(port), "%hu", u->port);
 
-        int sockfd;
-        struct sockaddr_in server_addr;
+        getaddrinfo(u->host, port, &hints, &res);
+        for (r = res; r != NULL; r = res->ai_next) {
+                s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+                if (s < 0)
+                        continue;
 
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = inet_addr(ip);
-        server_addr.sin_port = htons(u->port);
+                connection = connect(s, res->ai_addr, res->ai_addrlen);
+                if (!connection)
+                        break;
+                close(s);
+        }
 
-        sockfd = socket(AF_INET, SOCK_STREAM, 0);
-        assert(sockfd > 0);
-
-        int cnct;
-        cnct = connect(sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
-        assert(cnct == 0);
-
-        fprintf(stderr, "[INFO] connection established with '%s'.\n", ip);
-        return sockfd;
+        return !connection ? s : -1;
 }
 
 void
@@ -145,31 +142,62 @@ login(int sockfd, const URL *u) {
         if (response(sockfd, NULL, 0) != LOGIN)
                 return -LOGIN;
 
-        fprintf(stderr, "[INFO] login completed successfully\n");
         return 0;
 }
 
 URL *
 passive(int sockfd, const URL *u)
 {
-        char info[1024];
+        char info[MAX_LINE_LEN], data[24], addr[INET_ADDRSTRLEN+6];
+        unsigned char ip[6];
+        URL *url;
 
         command(sockfd, PASV, "");
         if (response(sockfd, info, sizeof(info)) != PASSIVE)
                 return NULL;
 
-        char data[24];
-        unsigned char ip[6];
-
-        sscanf(info, "%*[^(](%[^)]).\r\n", data);
+        sscanf(info, "%*[^(](%24[^)]).\r\n", data);
         sscanf(data, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", &ip[0], &ip[1], &ip[2], &ip[3], &ip[4], &ip[5]);
+        snprintf(addr, sizeof(addr), "ftp://%hhu.%hhu.%hhu.%hhu", ip[0], ip[1], ip[2], ip[3]);
 
-        char addr[6 + 32 + 64 + 17 + 1];
-        if (strncmp(u->user, "anonymous", 10) != 0)
-                snprintf(addr, sizeof(addr), "ftp://%s:%s@%hhu.%hhu.%hhu.%hhu", u->user, u->pass, ip[0], ip[1], ip[2], ip[3]);
-        else
-                snprintf(addr, sizeof(addr), "ftp://%hhu.%hhu.%hhu.%hhu", ip[0], ip[1], ip[2], ip[3]);
+        url = parse_url(addr, ip[4] * 256 + ip[5]);
+        if (strncmp(u->user, anon, strlen(anon)) != 0) {
+                strncpy(url->user, u->user, strlen(u->user));
+                strncpy(url->pass, u->pass, strlen(u->pass));
+        }
 
-        return parse_url(addr, ip[4] * 256 + ip[5]);
+        return url;
+}
+
+int
+retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp)
+{
+        char *filename, fragment[1024], info[MAX_LINE_LEN];
+        size_t filesize, iter, i, rb;
+
+        filename = strrchr(u->path, '/') + 1;
+        fp = fopen(filename, "wb");
+        assert(fp != NULL);
+
+        command(sockfd_a, RETR, u->path);
+        if (response(sockfd_a, info, sizeof(info)) != OPEN) {
+                fclose(fp);
+                return -OPEN;
+        }
+
+        sscanf(info, "%*[^(](%zu bytes).\r\n", &filesize);
+
+        iter = filesize / sizeof(fragment);
+        iter += filesize % sizeof(fragment) != 0;
+        for (i = 0; i < iter; i++) {
+                rb = recv(sockfd_b, fragment, sizeof(fragment), 0);
+                fwrite(fragment, 1, rb, fp);
+        }
+
+        fclose(fp);
+        if (response(sockfd_a, NULL, 0) != TRANSFER)
+                return -TRANSFER;
+
+        return 0;
 }
 
