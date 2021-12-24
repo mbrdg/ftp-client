@@ -25,14 +25,19 @@
 /* typedefs */
 typedef struct url URL;
 
-
+/* Fills an internal struct to allow connection to the ftp server. */
 URL *get(const char *url);
 
+/* Starts the connection with the ftp server. */
 int start(const URL *u);
+/* Stops the connection with the ftp server. */
 void stop(int sockfd);
 
+/* Logins in the ftp server */
 int login(int sockfd_a, const URL *u);
+/* Enters in passive mode */
 URL *passive(int sockfd_a, const URL *u);
+/* Retrieves the desired file from the ftp server */
 int retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp);
 
 #endif /* _CONNECTION_H_ */

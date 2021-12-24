@@ -34,15 +34,14 @@ main (int argc, char **argv)
 
         ub = passive(sa, ua);
         assert(ub != NULL);
+
         sb = start(ub);
         assert(sb > 0);
-
         free(ub);
 
         retr = retrieve(sa, sb, ua, f);
-        free(ua);
         assert(retr == 0);
-
+        free(ua);
 
         stop(sa);
         stop(sb);
