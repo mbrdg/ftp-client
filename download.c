@@ -21,30 +21,30 @@ main (int argc, char **argv)
                 return 1;
         }
 
-        int sock_a, sock_b, in, retr;
-        URL *url_a, *url_b;
+        int socka, sockb, auth, retr;
+        URL *urla, *urlb;
         FILE *f = NULL;
 
-        url_a = get(argv[1]);
-        sock_a = start(url_a);
-        assert(sock_a > 0);
+        urla = get(argv[1]);
+        socka = start(urla);
+        assert(socka > 0);
 
-        in = login(sock_a, url_a);
-        assert(in == 0);
+        auth = login(socka, urla);
+        assert(auth == 0);
 
-        url_b = passive(sock_a, url_a);
-        assert(ub != NULL);
+        urlb = passive(socka, urla);
+        assert(urlb != NULL);
 
-        sock_b = start(url_b);
-        assert(sock_b > 0);
-        free(url_b);
+        sockb = start(urlb);
+        assert(sockb > 0);
+        free(urlb);
 
-        retr = retrieve(sock_a, sock_b, url_a, f);
+        retr = retrieve(socka, sockb, urla, f);
         assert(retr == 0);
-        free(url_a);
+        free(urla);
 
-        stop(sock_a);
-        stop(sock_b);
+        stop(socka);
+        stop(sockb);
 
         return 0;
 }
