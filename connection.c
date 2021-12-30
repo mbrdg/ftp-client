@@ -63,7 +63,9 @@ response(int sockfd, char *info, size_t infolen)
         assert(fp != NULL);
 
         do {
-                assert(fgets(line, sizeof(line), fp));
+		char *buffer;
+		buffer = fgets(line, sizeof(line), fp);
+		assert(buffer == line);
         } while(line[3] != ' ');
 
         sscanf(line, "%hu [^\r\n]\r\n", &code);
@@ -77,10 +79,12 @@ response(int sockfd, char *info, size_t infolen)
 static void
 command(int sockfd, CMD cmd, const char *arg)
 {
-        char fmt[strlen(arg)+8];
+	char fmt[strlen(arg)+8];
+	ssize_t wb;
 
         snprintf(fmt, sizeof(fmt), "%s %s\r\n", cmds[cmd], arg);
-        assert(send(sockfd, fmt, strlen(fmt), 0) >= 0);
+	wb = send(sockfd, fmt, strlen(fmt), 0);
+	assert(wb >= 0);
 }
 
 
