@@ -132,15 +132,21 @@ stop(int sockfd)
 
 int
 login(int sockfd, const URL *u) {
-        if (response(sockfd, NULL, 0) != ACCEPT)
+        unsigned short resp;
+
+        resp = response(sockfd, NULL, 0);
+        if (resp != ACCEPT)
                 return -ACCEPT;
 
         command(sockfd, USER, u->user);
-        if (response(sockfd, NULL, 0) != PASS_SPEC)
-                return -PASS_SPEC;
+        resp = response(sockfd, NULL, 0);
+        if (resp == PASS_SPEC)
+                command(sockfd, PASS, u->pass);
+        else
+                return (resp == LOGIN) ? 0 : -PASS_SPEC;
 
-        command(sockfd, PASS, u->pass);
-        if (response(sockfd, NULL, 0) != LOGIN)
+        resp = response(sockfd, NULL, 0);
+        if (resp != LOGIN)
                 return -LOGIN;
 
         return 0;
