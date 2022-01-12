@@ -1,13 +1,13 @@
 # RC - Network Configuration
 
-# Experience 1
+## Experience 1
 
-In both computers we run the following command: `ifconfig eth0 down`.
+In both computers run the following command: `ifconfig eth0 down`.
 
 After that we run `ifconfig eth0 up 172.16.40.1/24` on *tux3* and `ifconfig
-eth0 up 172.16.40.254/24` on *tux4*. Now we ensure that both computers are
+eth0 up 172.16.40.254/24` on *tux4*. Now we can verify that both computers are
 connected with a `ping` command. The command used in *tux3* is the following:
-`ping 172.16.40.254`. The following outputmeans that we successfully connected
+`ping 172.16.40.254`. The following output means that we successfully connected
 both computers:
 
 ```sh
@@ -18,9 +18,9 @@ PING 172.16.40.254 (172.16.40.254) 56(84) bytes of data
 64 bytes from 172.16.40.254: icmp_seq=3 ttl=64 time=0.143 ms
 ```
 
-Now we check the forwarding and ARP tables with the commands provided. After a
-brief inspection we can say that the only route that exists on *tux3* is the
-one refering to the network configured above.
+Now we can check the routing and ARP (Address Resolution Protocol) tables with
+the commands provided. After a brief inspection we can say that the only route
+that exists on *tux3* is the one refering to the network configured above.
 That also means that the ARP can only resolve the *tux4* ip, since it is the
 only one in that same network.
 
@@ -33,10 +33,68 @@ Destination     Gateway     Genmask         Flags Metric Ref    Use Iface
 ? (172.16.40.254) at 00:21:5a:c3:78:76 [ether] on eth0
 ```
 
-TODO:
-analyse and answer the questions @ home
+> What are the ARP packets and what are they used for?
+> What are the MAC and IP addresses of ARP packets and why?
 
-# Experience 2
+After that we should delete the ARP entry presented above and capturing packets
+using wireshark. Taking a look at the logs it is possible to verify that there
+is an ARP packet asking for who has `172.40.16.1` right after the first ICMP
+reply, the answer to that packet contains the target's MAC adress allowing the
+ping reply to be delivered to the correct machine. Note that these packets also
+have the IP adresses of the machines that are comunicating because they need,
+obviously, to be resolved - that is the essence of the ARP.
+
+In other words, what happens is that *tux3* send a ping request to which *tux4*
+sends a reply. However, since we deleted the ARP entry on *tux3* it is not
+possible to resolve its MAC address, so *tux4* broadcasts an ARP packet asking
+for who has the given IP adress to which *tux3* receives it and responds saying
+that the IP address in the ARP packets is theirs and also broadcasts its MAC
+address to the all the others devices in the network.
+
+> What packets does the ping command generate?
+
+The ping command generates ICMP (Internet Control Message Protocol) packets.
+Some characteristics are its length which is 98 bytes, the type - 0 if it
+is a reply, 8 if it is a request, the sequence number and the checksum.
+
+> What are the MAC and IP addresses of the ping packets?
+
+These addresses allow to identify both the source and the destination of the
+packets sent.
+
+> How to determine if a receiving Ethernet frame is ARP, IP, ICMP?
+
+It is possible to determine the type of the receiving Ethernet frame by looking
+to the 13th and 14th bytes, they shoul look something like:
+
+* IP (`0x0800`)
+* ARP (`0x0806`)
+
+It should be noted that ICMP packets are IP packets where the byte 24 has the
+value `0x01`.
+
+> How to determine the length of a receiving frame?
+
+The length of the receiving frame is the sum of the length of the Ethernet
+frame (14 bytes) and the length of the IP frame, this value can be visualized 
+in the 17th and 18th bytes.
+
+> What is the loopback interface and why is it important?
+
+The loopback interface is a virtual interface that is always reachable and up.
+The IP protocol reserves the adresse `127.0.0.0/8` in IPv4 and `::1` in IPv6 to
+support this interface. Basically, whenever a packet is sent to the loopback
+address it is sent back to sender. The importance of the loopback interface
+comes in many different ways - it is essencial to make diagnostics and
+solve potencial issues with configuration when an interface is not reachable,
+since it never changes address meaning that it is resilient to network topology
+changes.
+
+Another important aspect of the loopback interface is that, like any other
+interface, it can determine if a computer is online or not as long as it can be
+used to identify a distinct computer in a network.
+
+## Experience 2
 
 Again we setup a network but this time is for *tux2* with the the same
 commands as the ones stated above - `ifconfig eth0 down` and `ifconfig eth0 up
@@ -46,7 +104,9 @@ After that we'll start configuring the VLANs (Virtual Local Area Network).
 First we create a `VLAN 40` with the commands provided and add the ports
 accordingly, this means that we should run the commands available in the guide.
 
-## VLAN configuration
+### VLAN configuration
+
+> How to configure vlanY0?
 
 The configuration of a VLAN is pretty staright forward once we understood its
 concept. Basically, it allows us to group machine logically in a restrict
@@ -90,7 +150,9 @@ After that the configuration can be checked with the following command:
 `sw# show vlan brief`, where it it possible to see which VLANs are currently
 configured and the respective ports.
 
-## Pings
+### Pings
+
+> How many broadcast domains are there? How can you conclude it from the logs?
 
 Now it is time to test the VLANs with pings. As expected pinging *tux4* from
 *tux3* is possible, however when we ping *tux2* from *tux3* we get the message
@@ -106,12 +168,14 @@ if the machine configuration allows it[^1].
 [^1]: With the command `#echo 0 > /proc/sys/ipv4/icmp_echo_ignore_broadcasts`.
 
 
-# Experience 3
+## Experience 3
 
 After reading the configuration for the CISCO router the answer to the proposed
 questions:
 
-## Analysing the configuration
+### Analysing the configuration
+
+> How to configure a static route in a commercial router?
 
 1. Router name is `gnu-rtr1` that can be seen in the line `hostname gnu-rtr1`;
 2. There 2 FastEthernet ports available with the numbers 0 and 1. Here is the
@@ -147,7 +211,9 @@ of 172.16.40.0/24 go to 172.16.30.2 (outside), otherwise they go to
     ip route 172.16.40.0 255.255.255.0 172.16.30.2
     ```
 
-## NAT Configuration
+### NAT Configuration
+
+> How to configure NAT in a commercial router?
 
 1. The connected interface to the internet is the one in which NAT is set to
 outside meaning that in the case of the provided configuration it is visible
@@ -169,7 +235,20 @@ available.
 3. The router is using overloading that can be checked in the following line:
 `ip nat inside source list 1 pool ovrld overload`.
 
-## DNS setup
+> What does NAT do?
+
+NAT (Network Address Translation) works as a intermediary between an internal
+network and the internet. That means that in on of the ends (`nat inside`) the 
+router will receive private addresses and translate them to an internet address 
+to be able to comunicate with the outside. The reverse occurs on the other end 
+of the NAT (`nat outside`). Another aspect to consider is the presence of the 
+MAC adresses and ports which is necessary to deliver the packets correctly to 
+each of the computers inside the private network.
+
+### DNS setup
+
+> How to configure the DNS service at an host?
+> What packets are exchanged by DNS and what information is transported?
 
 DNS stands for Domain Name Resolution. Is is a mechanism that transform human
 readable adresses in numeric adresses. On the first test (`ping youtubas`)
@@ -181,7 +260,7 @@ third test we switched the DNS server to 9.9.9.9 (provided by Quad9) and
 captured some packets, again we can see DNS query packets with the destination
 of the recently configured DNS server (9.9.9.9).
 
-## Linux Routing
+### Linux Routing
 
 To check the current routes in the system we shall use the `route -n` command.
 The output of the command is the follwing:
@@ -239,6 +318,7 @@ traceroute to 104.17.113.188 (104.17.113.188), 30 hops max, 60 byte packets
  4  * * *
  5  104.17.113.188  9.292 ms  9.869 ms  10.355 ms
 ```
+> What ICMP packets are observed and why?
 
 Capturing the packets we can verify that exist ICMP packets. Basically, we must
 know how `traceroute` works in order to understand such existence.
@@ -248,16 +328,20 @@ plus we were able to check that those ICMP packets message are the following:
 
 `Time-to-live exceeded (Time to live exceeded in transit)`
 
-Recal that this `traceroute` is essencially an "hack" of the protocol!
+Remember that this `traceroute` is essencially an "hack" of the protocol!
 
-Another important thing about the ICMP packets is that it contains the MAC and
+> What are the IP and MAC addresses associated to ICMP packets and why?
+
+Another important aspect about the ICMP packets is that it contains the MAC and
 IP adresses from both the source and the target to allow the correct
 distribution of the packets inside source's and target's LANs.
 
-At last, the routes in a machine can be visualized with the command `route -n`.
-That command provides a table of routes which consist in directing a group of
-packets whose destination fall in a given range in the correct gateway. If we
-take a look at the following route:
+> What routes are there in your machine? What are their meaning?
+
+In conclusion, the routes in a machine can be visualized with the command 
+`route -n`. That command provides a table of routes which consist in directing 
+a group of packets whose destination fall in a given range in the correct 
+gateway. If we take a look at the following route:
 
 ```
 Kernel IP routing table
