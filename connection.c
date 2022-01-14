@@ -79,12 +79,12 @@ response(int sockfd, char *info, size_t infolen)
 static void
 command(int sockfd, CMD cmd, const char *arg)
 {
-	char fmt[strlen(arg)+8];
-	ssize_t wb;
+	    char fmt[strlen(arg)+8];
+	    ssize_t wb;
 
         snprintf(fmt, sizeof(fmt), "%s %s\r\n", cmds[cmd], arg);
-	wb = send(sockfd, fmt, strlen(fmt), 0);
-	assert(wb >= 0);
+	    wb = send(sockfd, fmt, strlen(fmt), 0);
+	    assert(wb >= 0);
 }
 
 
@@ -171,7 +171,7 @@ passive(int sockfd, const URL *u)
 }
 
 int
-retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp)
+retrieve(int sockfd_auth, int sockfd_retr, const URL *u, FILE *fp)
 {
         char *filename, fragment[1024], info[MAX_LINE_LEN];
         size_t filesize, iter, i, rb;
@@ -180,8 +180,8 @@ retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp)
         fp = fopen(filename, "wb");
         assert(fp != NULL);
 
-        command(sockfd_a, RETR, u->path);
-        if (response(sockfd_a, info, sizeof(info)) != OPEN) {
+        command(sockfd_auth, RETR, u->path);
+        if (response(sockfd_auth, info, sizeof(info)) != OPEN) {
                 fclose(fp);
                 return -OPEN;
         }
@@ -191,13 +191,13 @@ retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp)
         iter = filesize / sizeof(fragment);
         iter += filesize % sizeof(fragment) != 0;
         for (i = 0; i < iter; i++) {
-                rb = recv(sockfd_b, fragment, sizeof(fragment), 0);
+                rb = recv(sockfd_retr, fragment, sizeof(fragment), 0);
                 assert(rb >= 0);
                 fwrite(fragment, 1, rb, fp);
         }
 
         fclose(fp);
-        if (response(sockfd_a, NULL, 0) != TRANSFER)
+        if (response(sockfd_auth, NULL, 0) != TRANSFER)
                 return -TRANSFER;
 
         return 0;

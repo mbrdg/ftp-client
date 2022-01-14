@@ -34,11 +34,11 @@ int start(const URL *u);
 void stop(int sockfd);
 
 /* Logins in the ftp server */
-int login(int sockfd_a, const URL *u);
+int login(int sockfd, const URL *u);
 /* Enters in passive mode */
-URL *passive(int sockfd_a, const URL *u);
+URL *passive(int sockfd, const URL *u);
 /* Retrieves the desired file from the ftp server */
-int retrieve(int sockfd_a, int sockfd_b, const URL *u, FILE *fp);
+int retrieve(int sockfd_auth, int sockfd_retr, const URL *u, FILE *fp);
 
 #endif /* _CONNECTION_H_ */
 
