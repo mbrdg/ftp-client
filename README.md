@@ -355,3 +355,44 @@ adresses range, in this case, since it is `255.255.255.255` that means that all
 32 bits of the destination must match meaning that `104.17.113.188` is the only
 and only one adress which falls in the range.
 
+## Experience 4
+
+* Make the 2 VLANs (vlan 40 and vlan 41) and add the respective ports
+* Run `ifconfig` without params and retrieve the MAC and IP adresses on *tux4*
+    * The value of the MAC address is on the line that begins with `ether`.
+    * The value of the IP address in on the line that begins with `inet`.
+
+```
+eth0:
+    ...
+    inet 172.16.40.254 netmask 255.255.255.0 broadcast 172.16.40.255
+    ether 00:21:5a:5a:7b:ea
+    ...
+eth1:
+    ...
+    inet 172.16.41.253 netmask 255.255.255.0 broadcast 172.16.41.255
+    ether 00:c0:df:25:1a:f4
+    ...
+```
+
+* Now configure the routes on *tux3* and *tux2* with the provived commands
+
+```
+# on tux3
+route add -net 172.16.41.0/24 gw 172.16.40.254
+# on tux2
+route add -net 172.16.40.0/24 gw 172.16.41.253
+```
+
+* Check the routes on the 3 tuxes
+
+```
+Destination     Gateway         Genmask       Flags Metric  Ref   Use Iface
+172.16.40.0     172.16.41.253   255.255.255.0 UG    0       0       0 eth0      # tux2
+172.16.41.0     0.0.0.0         255.255.255.0 U     0       0       0 eth0      # tux2
+172.16.40.0     0.0.0.0         255.255.255.0 U     0       0       0 eth0      # tux3
+172.16.41.0     172.16.40.254   255.255.255.0 U     0       0       0 eth0      # tux3
+172.16.40.0     0.0.0.0         255.255.255.0 U     0       0       0 eth0      # tux4
+172.16.41.0     0.0.0.0         255.255.255.0 U     0       0       0 eth1      # tux4
+```
+
