@@ -33,11 +33,11 @@ static URL *
 parse(const char *url, const unsigned short port)
 {
         URL *u;
-        u = malloc(sizeof(URL));
+        u = calloc(1, sizeof(URL));
         assert(u != NULL);
 
-        char l[128];
-        sscanf(url, "ftp://%128[^/]/%512s", l, u->path);
+        char l[32];
+        sscanf(url, "ftp://%32[^/]/%512s", l, u->path);
 
         strncpy(u->host, l, strlen(l));
         strncpy(u->user, anon, 10);
@@ -89,7 +89,7 @@ command(int sockfd, CMD cmd, const char *arg)
 
 
 URL *
-get(const char *url)
+geturl(const char *url)
 {
         return parse(url, FTP_PORT);
 }
@@ -132,21 +132,15 @@ stop(int sockfd)
 
 int
 login(int sockfd, const URL *u) {
-        unsigned short resp;
-
-        resp = response(sockfd, NULL, 0);
-        if (resp != ACCEPT)
+        if (response(sockfd, NULL, 0) != ACCEPT)
                 return -ACCEPT;
 
         command(sockfd, USER, u->user);
-        resp = response(sockfd, NULL, 0);
-        if (resp == PASS_SPEC)
-                command(sockfd, PASS, u->pass);
-        else
-                return (resp == LOGIN) ? 0 : -PASS_SPEC;
+        if (response(sockfd, NULL, 0) != PASS_SPEC)
+                return -PASS_SPEC;
 
-        resp = response(sockfd, NULL, 0);
-        if (resp != LOGIN)
+        command(sockfd, PASS, u->pass);
+        if (response(sockfd, NULL, 0) != LOGIN)
                 return -LOGIN;
 
         return 0;
@@ -165,7 +159,7 @@ passive(int sockfd, const URL *u)
 
         sscanf(info, "%*[^(](%24[^)]).\r\n", data);
         sscanf(data, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", &ip[0], &ip[1], &ip[2], &ip[3], &ip[4], &ip[5]);
-        snprintf(addr, sizeof(addr), "ftp://%hhu.%hhu.%hhu.%hhu", ip[0], ip[1], ip[2], ip[3]);
+        snprintf(addr, sizeof(addr), "ftp://%hhu.%hhu.%hhu.%hhu/", ip[0], ip[1], ip[2], ip[3]);
 
         url = parse(addr, ip[4] * 256 + ip[5]);
         if (strncmp(u->user, anon, strlen(anon)) != 0) {

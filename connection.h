@@ -21,12 +21,12 @@
 #include <string.h>
 #include <unistd.h>
 
-
 /* typedefs */
 typedef struct url URL;
 
+
 /* Fills an internal struct to allow connection to the ftp server. */
-URL *get(const char *url);
+URL *geturl(const char *url);
 
 /* Starts the connection with the ftp server. */
 int start(const URL *u);

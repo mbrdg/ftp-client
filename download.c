@@ -21,30 +21,30 @@ main (int argc, char **argv)
                 return 1;
         }
 
-        int socka, sockb, auth, retr;
-        URL *urla, *urlb;
+        int sock_auth, sock_retr, auth, retr;
+        URL *url_auth, *url_retr;
         FILE *f = NULL;
 
-        urla = get(argv[1]);
-        socka = start(urla);
-        assert(socka > 0);
+        url_auth = geturl(argv[1]);
+        sock_auth = start(url_auth);
+        assert(sock_auth > 0);
 
-        auth = login(socka, urla);
+        auth = login(sock_auth, url_auth);
         assert(auth == 0);
 
-        urlb = passive(socka, urla);
-        assert(urlb != NULL);
+        url_retr = passive(sock_auth, url_auth);
+        assert(url_retr != NULL);
 
-        sockb = start(urlb);
-        assert(sockb > 0);
-        free(urlb);
+        sock_retr = start(url_retr);
+        assert(sock_retr > 0);
+        free(url_retr);
 
-        retr = retrieve(socka, sockb, urla, f);
+        retr = retrieve(sock_auth, sock_retr, url_auth, f);
         assert(retr == 0);
-        free(urla);
+        free(url_auth);
 
-        stop(socka);
-        stop(sockb);
+        stop(sock_auth);
+        stop(sock_retr);
 
         return 0;
 }
