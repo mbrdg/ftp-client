@@ -43,8 +43,8 @@ main (int argc, char **argv)
         assert(retr == 0);
         free(url_auth);
 
-        stop(sock_auth);
         stop(sock_retr);
+        stop(sock_auth);
 
         return 0;
 }

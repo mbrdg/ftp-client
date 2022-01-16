@@ -88,8 +88,8 @@ response(int sockfd, char *info, size_t infolen)
 
         do {
 		        char *buffer;
-		        buffer = fgets(line, sizeof(line), fp);
-		        assert(buffer == line);
+                buffer = fgets(line, sizeof(line), fp);
+                assert(buffer == line);
         } while(line[3] != ' ');
 
         sscanf(line, "%hu [^\r\n]\r\n", &code);
