@@ -25,7 +25,7 @@ main (int argc, char **argv)
         URL *url_auth, *url_retr;
         FILE *f = NULL;
 
-        url_auth = geturl(argv[1]);
+        url_auth = geturl(argv[1], FTP_PORT);
         sock_auth = start(url_auth);
         assert(sock_auth > 0);
 

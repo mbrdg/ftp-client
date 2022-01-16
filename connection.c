@@ -8,12 +8,25 @@
 #include "connection.h"
 
 /* macros */
-#define FTP_PORT 21
 #define MAX_LINE_LEN 1024
 
 /* enums */
-typedef enum { USER, PASS, PASV, RETR, QUIT } CMD;
-typedef enum { OPEN = 150, ACCEPT = 220, TRANSFER = 226, PASSIVE = 227, LOGIN = 230, PASS_SPEC = 331 } CODE;
+typedef enum { 
+        USER, 
+        PASS,
+        PASV,
+        RETR,
+        QUIT 
+} CMD;
+
+typedef enum { 
+        OPEN        = 150, 
+        ACCEPT      = 220, 
+        TRANSFER    = 226, 
+        PASSIVE     = 227, 
+        LOGIN       = 230, 
+        PASS_SPEC   = 331
+} CODE;
 
 /* structs */
 struct url {
@@ -29,15 +42,15 @@ static const char cmds[][5] = { "USER", "PASS", "PASV", "RETR", "QUIT" };
 static const char anon[] = "anonymous";
 
 
-static URL *
-parse(const char *url, const unsigned short port)
+URL *
+geturl(const char *url, const unsigned short port)
 {
         URL *u;
         u = calloc(1, sizeof(URL));
         assert(u != NULL);
 
-        char l[32];
-        sscanf(url, "ftp://%32[^/]/%512s", l, u->path);
+        char l[128];
+        sscanf(url, "ftp://%128[^/]/%512s", l, u->path);
 
         strncpy(u->host, l, strlen(l));
         strncpy(u->user, anon, 10);
@@ -58,14 +71,25 @@ response(int sockfd, char *info, size_t infolen)
         FILE *fp;
         char line[MAX_LINE_LEN];
 
+/*
+ *  Here we really need to kkep track of the file descriptor open
+ *  by the connect(). This means that is needs to be duplicated here
+ *  just because of the response, otherwise when this function is done
+ *  and calls fclose() the file descriptor will be closed as well.
+ *  
+ *  More info is available in fclose() man page:
+ *  The fclose() function shall perform the equivalent of a close() on
+ *  the file descriptor that is associated with the stream pointed to 
+ *  by stream.  
+ */
         s = dup(sockfd);
         fp = fdopen(s, "r");
         assert(fp != NULL);
 
         do {
-		char *buffer;
-		buffer = fgets(line, sizeof(line), fp);
-		assert(buffer == line);
+		        char *buffer;
+		        buffer = fgets(line, sizeof(line), fp);
+		        assert(buffer == line);
         } while(line[3] != ' ');
 
         sscanf(line, "%hu [^\r\n]\r\n", &code);
@@ -85,13 +109,6 @@ command(int sockfd, CMD cmd, const char *arg)
         snprintf(fmt, sizeof(fmt), "%s %s\r\n", cmds[cmd], arg);
 	    wb = send(sockfd, fmt, strlen(fmt), 0);
 	    assert(wb >= 0);
-}
-
-
-URL *
-geturl(const char *url)
-{
-        return parse(url, FTP_PORT);
 }
 
 
@@ -132,11 +149,17 @@ stop(int sockfd)
 
 int
 login(int sockfd, const URL *u) {
-        if (response(sockfd, NULL, 0) != ACCEPT)
+        unsigned short resp;
+
+        resp = response(sockfd, NULL, 0);
+        if (resp != ACCEPT)
                 return -ACCEPT;
 
         command(sockfd, USER, u->user);
-        if (response(sockfd, NULL, 0) != PASS_SPEC)
+        resp = response(sockfd, NULL, 0);
+        if (resp == LOGIN)
+                return 0;
+        if (resp != PASS_SPEC)
                 return -PASS_SPEC;
 
         command(sockfd, PASS, u->pass);
@@ -151,6 +174,7 @@ passive(int sockfd, const URL *u)
 {
         char info[MAX_LINE_LEN], data[24], addr[INET_ADDRSTRLEN+6];
         unsigned char ip[6];
+
         URL *url;
 
         command(sockfd, PASV, "");
@@ -161,7 +185,7 @@ passive(int sockfd, const URL *u)
         sscanf(data, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", &ip[0], &ip[1], &ip[2], &ip[3], &ip[4], &ip[5]);
         snprintf(addr, sizeof(addr), "ftp://%hhu.%hhu.%hhu.%hhu/", ip[0], ip[1], ip[2], ip[3]);
 
-        url = parse(addr, ip[4] * 256 + ip[5]);
+        url = geturl(addr, ip[4] * 256 + ip[5]);
         if (strncmp(u->user, anon, strlen(anon)) != 0) {
                 strncpy(url->user, u->user, strlen(u->user));
                 strncpy(url->pass, u->pass, strlen(u->pass));
@@ -173,8 +197,11 @@ passive(int sockfd, const URL *u)
 int
 retrieve(int sockfd_auth, int sockfd_retr, const URL *u, FILE *fp)
 {
-        char *filename, fragment[1024], info[MAX_LINE_LEN];
-        size_t filesize, iter, i, rb;
+        char *filename, info[MAX_LINE_LEN];
+        unsigned char fragment[1024];
+
+        ssize_t rb;
+        size_t fsize;
 
         filename = strrchr(u->path, '/') + 1;
         fp = fopen(filename, "wb");
@@ -186,15 +213,12 @@ retrieve(int sockfd_auth, int sockfd_retr, const URL *u, FILE *fp)
                 return -OPEN;
         }
 
-        sscanf(info, "%*[^(](%zu bytes).\r\n", &filesize);
-
-        iter = filesize / sizeof(fragment);
-        iter += filesize % sizeof(fragment) != 0;
-        for (i = 0; i < iter; i++) {
+        sscanf(info, "%*[^(](%zu bytes).\r\n", &fsize);
+        
+        do {
                 rb = recv(sockfd_retr, fragment, sizeof(fragment), 0);
-                assert(rb >= 0);
                 fwrite(fragment, 1, rb, fp);
-        }
+        } while (rb > 0);  
 
         fclose(fp);
         if (response(sockfd_auth, NULL, 0) != TRANSFER)
