@@ -926,3 +926,9 @@ if [[ $1 -eq 4 ]]
     route add default gw 172.16.41.254
 fi
 ```
+
+## *Logs*
+
+Os *logs* encontram-se no diretório `doc/logs` e podem ser consultados no 
+*wireshark*.
+
