@@ -501,3 +501,428 @@ desafiantes - foram alcançados com êxito.
 - [Network Address Translation](https://en.wikipedia.org/wiki/Network_address_translation)
 - [Domain Name System](https://en.wikipedia.org/wiki/Domain_Name_System)
 
+\newpage
+
+# Anexos
+
+## Código-fonte
+
+### download.c
+
+```{.c .numberLines }
+/**
+* download.c
+* ftp client
+* Authors: Miguel Rodrigues & Nuno Castro
+* RC @ L.EIC 2122
+*/
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include "connection.h"
+
+
+int
+main (int argc, char **argv)
+{
+        if (argc != 2) {
+                fprintf(stderr, 
+                        "usage: %s ftp://[<user>:<password>@]<host>/<url-path>\n", 
+                        argv[0]);
+                return 1;
+        }
+
+        int sock_auth, sock_retr, auth, retr;
+        URL *url_auth, *url_retr;
+        FILE *f = NULL;
+
+        url_auth = geturl(argv[1], FTP_PORT);
+        sock_auth = start(url_auth);
+        assert(sock_auth > 0);
+
+        auth = login(sock_auth, url_auth);
+        assert(auth == 0);
+
+        url_retr = passive(sock_auth, url_auth);
+        assert(url_retr != NULL);
+
+        sock_retr = start(url_retr);
+        assert(sock_retr > 0);
+        free(url_retr);
+
+        retr = retrieve(sock_auth, sock_retr, url_auth, f);
+        assert(retr == 0);
+        free(url_auth);
+
+        stop(sock_retr);
+        stop(sock_auth);
+
+        return 0;
+}
+```
+
+### connection.h
+
+```{.c .numberLines}
+/**
+* connection.h
+* ftp client
+* Authors: Miguel Rodrigues & Nuno Castro
+* RC @ L.EIC 2122
+*/
+
+#ifndef _CONNECTION_H_
+#define _CONNECTION_H_
+
+#include <sys/socket.h>
+#include <sys/types.h>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+
+#include <assert.h>
+#include <netdb.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+
+/* macros */
+#define FTP_PORT 21
+
+/* typedefs */
+typedef struct url URL;
+
+
+/** 
+ * geturl - Parses the given url and port filling a URL structure
+ * @url: an url string
+ * @port: a port in which the connection should be made
+ * 
+ * The main function should call this with port 21 aka FTP_PORT and
+ * should call free on the returned pointer after using it
+ * Return: URL*
+ */
+URL *geturl(const char *url, const unsigned short port);
+
+
+/**
+ * start - Starts the connection with the ftp server. 
+ * @u: a URL* for a struct given by geturl()
+ *
+ * Return: file descriptor for the opened socket
+ */
+int start(const URL *u);
+
+/**
+ * stop - Stops the connection with the ftp server. 
+ * @sockfd: file descriptor of the socket hosting the connection
+ * 
+ * Must be called in order to finish a connection successfully
+ */
+void stop(int sockfd);
+
+
+/**
+ * login - Logins in the ftp server 
+ * @sockfd: file descriptor of the socket hosting the connection
+ * @u: a URL* for a struct given by geturl()
+ * 
+ * Return: 0 if successful <0 value otherwise 
+ */
+int login(int sockfd, const URL *u);
+
+/**
+ * passive - Enters in passive mode
+ * @sockfd: file descriptor of the socket hosting the connection
+ * @u: a URL* for a struct given by geturl()
+ * 
+ * The main function should call free on the returned pointer after using it
+ * Return: a new URL* to allow open the retrieve connection of ftp (RFC 959)
+ */
+URL *passive(int sockfd, const URL *u);
+
+/**
+ * retrieve - Retrieves the desired file from the ftp server  
+ * @sockfd_auth: file descriptor of the socket hosting the connection
+ * @sockfd_retr: file descriptor of the socket hosting the connection
+ * @u: a URL* for a struct given by geturl()
+ * @fp: file to be downloaded
+ * 
+ * Return: 0 if successful <0 value otherwise 
+ */
+int retrieve(int sockfd_auth, int sockfd_retr, const URL *u, FILE *fp);
+
+#endif /* _CONNECTION_H_ */
+```
+
+### connection.c
+
+```{.c .numberLines}
+/**
+* connection.c
+* ftp client
+* Authors: Miguel Rodrigues & Nuno Castro
+* RC @ L.EIC 2122
+*/
+
+#include "connection.h"
+
+/* macros */
+#define MAX_LINE_LEN 1024
+
+/* enums */
+typedef enum { 
+        USER, 
+        PASS,
+        PASV,
+        RETR,
+        QUIT 
+} CMD;
+
+typedef enum { 
+        OPEN        = 150, 
+        ACCEPT      = 220, 
+        TRANSFER    = 226, 
+        PASSIVE     = 227, 
+        LOGIN       = 230, 
+        PASS_SPEC   = 331
+} CODE;
+
+/* structs */
+struct url {
+        char           user[32];
+        char           pass[64];
+        char           host[32];
+        unsigned short port;
+        char           path[512];
+};
+
+/* globals */
+static const char cmds[][5] = { "USER", "PASS", "PASV", "RETR", "QUIT" };
+static const char anon[] = "anonymous";
+
+
+URL *
+geturl(const char *url, const unsigned short port)
+{
+        URL *u;
+        u = calloc(1, sizeof(URL));
+        assert(u != NULL);
+
+        char l[128];
+        sscanf(url, "ftp://%128[^/]/%512s", l, u->path);
+
+        strncpy(u->host, l, strlen(l));
+        strncpy(u->user, anon, 10);
+        strncpy(u->pass, "", 1);
+        u->port = port;
+
+        if (strchr(l, '@'))
+                sscanf(l, "%32[^:]:%64[^@]@%32s", u->user, u->pass, u->host);
+
+        return u;
+}
+
+static unsigned short
+response(int sockfd, char *info, size_t infolen)
+{
+        unsigned short code;
+        int s;
+        FILE *fp;
+        char line[MAX_LINE_LEN];
+
+/*
+ *  Here we really need to kkep track of the file descriptor open
+ *  by the connect(). This means that is needs to be duplicated here
+ *  just because of the response, otherwise when this function is done
+ *  and calls fclose() the file descriptor will be closed as well.
+ *  
+ *  More info is available in fclose() man page:
+ *  The fclose() function shall perform the equivalent of a close() on
+ *  the file descriptor that is associated with the stream pointed to 
+ *  by stream.  
+ */
+        s = dup(sockfd);
+        fp = fdopen(s, "r");
+        assert(fp != NULL);
+
+        do {
+		        char *buffer;
+                buffer = fgets(line, sizeof(line), fp);
+                assert(buffer == line);
+        } while(line[3] != ' ');
+
+        sscanf(line, "%hu [^\r\n]\r\n", &code);
+        if (info != NULL)
+                strncpy(info, line, infolen);
+
+        fclose(fp);
+        return code;
+}
+
+static void
+command(int sockfd, CMD cmd, const char *arg)
+{
+	    char fmt[strlen(arg)+8];
+	    ssize_t wb;
+
+        snprintf(fmt, sizeof(fmt), "%s %s\r\n", cmds[cmd], arg);
+	    wb = send(sockfd, fmt, strlen(fmt), 0);
+	    assert(wb >= 0);
+}
+
+
+int
+start(const URL *u)
+{
+        struct addrinfo hints, *res, *r;
+        int s, connection = 1;
+        char port[6];
+
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        snprintf(port, sizeof(port), "%hu", u->port);
+
+        getaddrinfo(u->host, port, &hints, &res);
+        for (r = res; r != NULL; r = res->ai_next) {
+                s = socket(r->ai_family, r->ai_socktype, r->ai_protocol);
+                if (s < 0)
+                        continue;
+
+                connection = connect(s, r->ai_addr, r->ai_addrlen);
+                if (!connection)
+                        break;
+                close(s);
+        }
+
+        return !connection ? s : -1;
+}
+
+void
+stop(int sockfd)
+{
+        command(sockfd, QUIT, "");
+        close(sockfd);
+}
+
+
+int
+login(int sockfd, const URL *u) {
+        unsigned short resp;
+
+        resp = response(sockfd, NULL, 0);
+        if (resp != ACCEPT)
+                return -ACCEPT;
+
+        command(sockfd, USER, u->user);
+        resp = response(sockfd, NULL, 0);
+        if (resp == LOGIN)
+                return 0;
+        if (resp != PASS_SPEC)
+                return -PASS_SPEC;
+
+        command(sockfd, PASS, u->pass);
+        if (response(sockfd, NULL, 0) != LOGIN)
+                return -LOGIN;
+
+        return 0;
+}
+
+URL *
+passive(int sockfd, const URL *u)
+{
+        char info[MAX_LINE_LEN], data[24], addr[INET_ADDRSTRLEN+6];
+        unsigned char ip[6];
+
+        URL *url;
+
+        command(sockfd, PASV, "");
+        if (response(sockfd, info, sizeof(info)) != PASSIVE)
+                return NULL;
+
+        sscanf(info, "%*[^(](%24[^)]).\r\n", data);
+        sscanf(data, "%hhu,%hhu,%hhu,%hhu,%hhu,%hhu", 
+                    &ip[0], &ip[1], &ip[2], &ip[3], &ip[4], &ip[5]);
+        snprintf(addr, sizeof(addr), "ftp://%hhu.%hhu.%hhu.%hhu/", 
+                    ip[0], ip[1], ip[2], ip[3]);
+
+        url = geturl(addr, ip[4] * 256 + ip[5]);
+        if (strncmp(u->user, anon, strlen(anon)) != 0) {
+                strncpy(url->user, u->user, strlen(u->user));
+                strncpy(url->pass, u->pass, strlen(u->pass));
+        }
+
+        return url;
+}
+
+int
+retrieve(int sockfd_auth, int sockfd_retr, const URL *u, FILE *fp)
+{
+        char *filename, info[MAX_LINE_LEN];
+        unsigned char fragment[1024];
+
+        ssize_t rb;
+        size_t fsize;
+
+        filename = strrchr(u->path, '/') + 1;
+        fp = fopen(filename, "wb");
+        assert(fp != NULL);
+
+        command(sockfd_auth, RETR, u->path);
+        if (response(sockfd_auth, info, sizeof(info)) != OPEN) {
+                fclose(fp);
+                return -OPEN;
+        }
+
+        sscanf(info, "%*[^(](%zu bytes).\r\n", &fsize);
+        
+        do {
+                rb = recv(sockfd_retr, fragment, sizeof(fragment), 0);
+                fwrite(fragment, 1, rb, fp);
+        } while (rb > 0);  
+
+        fclose(fp);
+        if (response(sockfd_auth, NULL, 0) != TRANSFER)
+                return -TRANSFER;
+
+        return 0;
+}
+```
+
+### setup.sh
+
+```{.sh .numberLines}
+#!/bin/sh
+
+ifconfig eth0 down
+ifconfig eth1 down
+
+# tux 2
+if [[ $1 -eq 2 ]]
+    ifconfig eth0 up 172.16.41.1/24
+    route add -net 172.16.40.0/24 gw 172.16.41.253
+    route add default gw 172.16.41.254
+fi
+
+# tux 3
+if [[ $1 -eq 3 ]]
+    ifconfig eth0 up 172.16.40.1/24
+    route add -net 172.16.41.0/24 gw 172.16.40.254
+    route add default gw 172.16.40.254
+fi
+
+# tux 4
+if [[ $1 -eq 4 ]]
+    ifconfig eth0 up 172.16.40.254/24
+    ifconfig eth1 up 172.16.41.253/24
+    echo 1 > /proc/sys/net/ipv4/ip_forward
+    echo 0 > /proc/sys/net/ipv4/icmp_echo_ignore_broadcasts
+    route add default gw 172.16.41.254
+fi
+```
