@@ -1,134 +1,261 @@
-# RC - Network Configuration
+% Redes de Computadores - FTP e configuração da rede do laboratório
+% Miguel Rodrigues (up201906042@edu.fe.up.pt); Nuno Castro (up202003324@edu.fe.up.pt)
 
-## Experience 1
+\newpage
 
-In both computers run the following command: `ifconfig eth0 down`.
+# Sumário
 
-After that we run `ifconfig eth0 up 172.16.40.1/24` on *tux3* and `ifconfig
-eth0 up 172.16.40.254/24` on *tux4*. Now we can verify that both computers are
-connected with a `ping` command. The command used in *tux3* is the following:
-`ping 172.16.40.254`. The following output means that we successfully connected
-both computers:
+O segundo trabalho prático da unidade curricular de Redes de Computadores
+coloca especial ênfase nas camadas de topo do modelo OSI, em particular as
+camadas de rede e de aplicação.
 
-```sh
+Numa primeira parte, abordar-se-á o desnvolvimento do cliente FTP proposto e
+onde se enquadra a camada de aplicação, referida acima. Depois, serão expostos
+todos os detalhes relevantes sobre a configuração da rede IP, onde se encaixa a
+camada de rede, também ela referida no parágrafo anterior.
+
+# Desenvolvimento do cliente FTP
+
+O desenvolvimento do cliente FTP resultou numa aplicação simples para a
+descarga de ficheiros com base no protocolo FTP escrita na liguagem C.
+
+## Telnet
+
+O inicio da interação com o protocolo FTP deu-se com o Telnet - um programa que
+funciona como uma interface para o protocolo com o mesmo nome e que possibilita
+a transferência de dados entre dispositivos diferentes numa mesma rede.
+
+### Establecimento da ligação
+
+Em todo o caso, uma conexão com o servidor FTP inicia-se da seguinte forma:
+
+- `$ telnet ftp.up.pt 21`.
+
+Ou seja, estamos a iniciar uma ligação com o servidor `ftp.up.pt` na porta 
+`21` - a padrão para o protocolo FTP.
+
+### Autenticação
+
+Após o começo da ligação o servidor envia uma mensagem de boas-vindas.
+De seguida, o cliente deve autenticar-se fornecendo um nome de utilizador e a
+respetiva palavra-passe. Os comandos necessários ao processo de autenticação
+são:
+
+- `USER <username>`
+- `PASS <password>`
+
+Uma nota importante é a de que este processo é ocorre para todas as ligações,
+no caso de se especificar o utilizador `anonymous` podemos depois fornecer
+qualquer palavra-passe e assim efetuar a autenticação, desde que suportado pelo
+servidor FTP. Além disso, observa-se que as palavra-passe no protocolo FTP 
+circulam de forma não encriptada, o que imdiatamente levanta questões de 
+segurança.
+
+### Estado da ligação
+
+A conexão com o servidor FTP carateriza-se também pelo seu estado.
+Esse estado pode ser **ativo**, ou seja, o servidor toma a iniciativa e liga-se
+ao cliente, ou então **passivo**, onde é o cliente quem se liga ao servidor.
+
+Por defeito, a ligação FTP está no modo ativo mas, para a finalidade 
+pretendida, esta pode e deve ser alterada para o modo passivo com o comando
+`PASV` - uma vez que será pedido um recurso ao servidor, por iniciativa do 
+cliente.
+
+### Pedido ao servidor
+
+Quando o modo da ligação FTP é alterado o servidor fornece a informação ao
+cliente para que este se conecte numa nova porta. É a partir dessa nova ligação
+que os dados serão transferidos ao cliente. 
+
+Deste modo, o cliente deve conectar-se com o servidor nessa nova porta, sendo
+que, naquela onde efetuou a autenticação deve agora executar o comando 
+`RETR <resource-path>`. Se tudo decorrer sem erros, o servidor deve responder
+com uma mensagem alertando para o fim da transferência dos dados.
+
+## Programa `download`
+
+O programa `download` deve ser capaz de excutar os passos de acordo com o que
+foi discutido acima. Este programa deve ser invocado da seguinte forma:
+
+- `$ download ftp://[<user>:<password>@]<host>/<url-path>`
+
+Felizmente, para a comunicação entre diferentes dispositivos na *internet* 
+existe uma abstração disponível - o *socket* - e que representa cada um dos 
+canais de comunicação. Assim, o algoritmo a seguir deve ser algo como:
+
+1. Leitura do URL fornecido;
+2. Abertura do *socket* de autenticação;
+3. Comandos `USER` e `PASS`;
+4. Comando `PASV`;
+5. Leitura das informações necessárias ao establecimento da nova ligação;
+6. Abertura do *socket* de transferência;
+7. Comando `RETR` via *socket* de autenticação;
+8. Leitura dos dados via *socket* de transferência;
+9. Fecho de ambos os *sockets* e por sua vez da ligação.
+
+### Arquitetura da aplicação e execução
+
+A aplicação encontra-se estruturada de uma forma simples. No ficheiro 
+`download.c` encontramos, essencialmente, o algoritmo descrito acima. Já nos
+ficheiros `connection.h` e `connection.c` encontramos uma interface com cada um
+dos procedimentos inerentes ao protocolo FTP, documentada e que pode ser 
+consultada em detalhe nos anexos fornecidos.
+
+A execução do programa apenas fornece *output* em caso de erro, terminando de
+forma imediata. Caso contrário, o ficheiro é transferido para o diretório com o
+mesmo nome do ficheiro no servidor FTP. Um exemplo de execução bem sucedido
+deve ser idêntico a algo como:
+
+```
+$ download ftp://ftp.up.pt/pub/kodi/timestamp.txt
+$ ls timestamp.txt
+-rw-r--r-- 1 user user 11 Jan 22 23:32 timestamp.txt
+```
+
+Também é possível fornecer os dados de autenticação pelo argumento da linha de
+comandos:
+
+```
+$ download ftp://rcom:rcom@netlab1.fe.up.pt/files/crab.mp4
+$ ls -lh crab.mp4
+-rw-r--r-- 1 user user 85M Jan 22 23:26 crab.mp4
+```
+
+# Configuração da rede do laboratório
+
+A seguinte secção demonstra os diferentes aspetos relativos à configuração da 
+rede do laboratório. Um aspeto importante a ter em conta é o de que os comandos
+apresentados são válidos para a bancada 4 da sala I321.
+
+## Experiência 1
+
+Nesta experiência, o objetivo é atribuir o endereço IP ao *tux3* e *tux4*.
+
+### Configuração
+
+Em ambos os computadores é necessário efetuar um *reset* na interface em que se
+pretende configurar o endereço IP - por uma questão de simplicidade utiliza-se
+a interface `eth0`:
+
+- `# ifconfig eth0 down`.
+
+Em seguida, configura-se os endereços para cada um dos *tux* de acordo com
+o diagrama fornecido no enunciado:
+
+- `# ifconfig eht0 up 172.16.40.1/24`, no *tux3*;
+- `# ifconfig eht0 up 172.16.40.254/24`, no *tux4*.
+
+Para testar a ligação entre os 2 computadores usa-se o comando `ping` - um
+utilitário que utiliza o protocolo ICMP e testar a conectividade entre 
+equipamentos. O seguinte *output* indica que a configuração foi concretizada
+corretamente.
+
+```
 # ping 172.16.40.254
 PING 172.16.40.254 (172.16.40.254) 56(84) bytes of data
 64 bytes from 172.16.40.254: icmp_seq=1 ttl=64 time=0.315 ms
 64 bytes from 172.16.40.254: icmp_seq=2 ttl=64 time=0.156 ms
-64 bytes from 172.16.40.254: icmp_seq=3 ttl=64 time=0.143 ms
 ```
 
-Now we can check the routing and ARP (Address Resolution Protocol) tables with
-the commands provided. After a brief inspection we can say that the only route
-that exists on *tux3* is the one refering to the network configured above.
-That also means that the ARP can only resolve the *tux4* ip, since it is the
-only one in that same network.
+Agora, é também momento de inspecionar as tabelas `route` e `arp` em cada
+*tux*. Os comandos são, respetivamente, `route -n` e `arp -a`.
 
-```sh
-# route -n
-Kernel IP routing table
-Destination     Gateway     Genmask         Flags Metric Ref    Use Iface
-172.16.40.0     0.0.0.0     255.255.255.0   U     0      0        0 eth0
-#arp -a
-? (172.16.40.254) at 00:21:5a:c3:78:76 [ether] on eth0
-```
+### Análise dos *logs*
 
-> What are the ARP packets and what are they used for?
-> What are the MAC and IP addresses of ARP packets and why?
+Depois da sequência de comandos apresentada anteriormente, é importante apagar
+todos os registos das tabelas ARP para que no *wireshark* os pacotes ARP sejam
+capturados. Eis o comando necessário:
 
-After that we should delete the ARP entry presented above and capturing packets
-using wireshark. Taking a look at the logs it is possible to verify that there
-is an ARP packet asking for who has `172.40.16.1` right after the first ICMP
-reply, the answer to that packet contains the target's MAC adress allowing the
-ping reply to be delivered to the correct machine. Note that these packets also
-have the IP adresses of the machines that are comunicating because they need,
-obviously, to be resolved - that is the essence of the ARP.
+- `# arp -del 172.16.40.254`, no *tux3*.
 
-In other words, what happens is that *tux3* send a ping request to which *tux4*
-sends a reply. However, since we deleted the ARP entry on *tux3* it is not
-possible to resolve its MAC address, so *tux4* broadcasts an ARP packet asking
-for who has the given IP adress to which *tux3* receives it and responds saying
-that the IP address in the ARP packets is theirs and also broadcasts its MAC
-address to the all the others devices in the network.
+> ***What are the ARP packets and what are they used for?***
 
-> What packets does the ping command generate?
+> ***What are the MAC and IP addresses of ARP packets and why?***
 
-The ping command generates ICMP (Internet Control Message Protocol) packets.
-Some characteristics are its length which is 98 bytes, the type - 0 if it
-is a reply, 8 if it is a request, the sequence number and the checksum.
+Depois de apagadas as entradas da tabela ARP no *tux3*. Verifica-se que existem
+pacotes ARP a perguntar quem tem o endereço `172.40.16.1` logo após a primeira
+resposta ICMP. A resposta a este pacote contém o endereço MAC do alvo dessa
+resposta, o que permite a entrega do pacote de resposta ICMP que se encontrava
+em espera.
 
-> What are the MAC and IP addresses of the ping packets?
+Assim, é possível constatar que os pacotes ARP quando enviados, são enviados a
+todos os dispositivos conectados à mesma rede - *broadcast*. Como a sigla o
+indica, ARP (*Adress Resolution Protocol*) é um protocolo que permite 
+reconhecer qual o dispositivo com um determinado endereço IP quando esse 
+endereço faz parte da mesma rede. Como se referiu em cima, a resposta é o
+endereço MAC que distingue os dispositivos dentro da mesma rede e que, 
+por isso, deve ser único.
 
-These addresses allow to identify both the source and the destination of the
-packets sent.
+> ***What packets does the ping command generate?***
 
-> How to determine if a receiving Ethernet frame is ARP, IP, ICMP?
+O comando `ping` gera pacotes ICMP (*Internet Control Message Protocol*).
+Eis algumas das características destes pacotes:
 
-It is possible to determine the type of the receiving Ethernet frame by looking
-to the 13th and 14th bytes, they shoul look something like:
+- Comprimento de 98 *bytes*;
+- Tipo (byte 34):
+    - `0x00` no caso de um `reply`;
+    - `0x08` no caso de um `request`;
+- Número de sequência (bytes 40 e 41);
+- *Checksum* (bytes 36 e 37).
 
-* IP (`0x0800`)
-* ARP (`0x0806`)
+> ***What are the MAC and IP addresses of the ping packets?***
 
-It should be noted that ICMP packets are IP packets where the byte 24 has the
-value `0x01`.
+Os endereços IP e MAC presentes nos pacotes ICMP identificam, respetivamente,
+as redes de origem e de destino e os dispositivos de origem e de destino dentro
+dessas redes.
 
-> How to determine the length of a receiving frame?
+> ***How to determine if a receiving Ethernet frame is ARP, IP, ICMP?***
 
-The length of the receiving frame is the sum of the length of the Ethernet
-frame (14 bytes) and the length of the IP frame, this value can be visualized 
-in the 17th and 18th bytes.
+É possível determinar o tipo de *Ethernet frame* de acordo com os *bytes* 13 e
+14:
 
-> What is the loopback interface and why is it important?
+- IPv4 (`0x0800`);
+- ARP (`0x0806`).
 
-The loopback interface is a virtual interface that is always reachable and up.
-The IP protocol reserves the adresse `127.0.0.0/8` in IPv4 and `::1` in IPv6 to
-support this interface. Basically, whenever a packet is sent to the loopback
-address it is sent back to sender. The importance of the loopback interface
-comes in many different ways - it is essencial to make diagnostics and
-solve potencial issues with configuration when an interface is not reachable,
-since it never changes address meaning that it is resilient to network topology
-changes.
+Nota para o facto de que o *byte* 23, nos pacotes ICMP, identifica o protocolo
+e tem o valor `0x01`, contudo este valor já não faz da *Ethernet frame*.
 
-Another important aspect of the loopback interface is that, like any other
-interface, it can determine if a computer is online or not as long as it can be
-used to identify a distinct computer in a network.
+> ***How to determine the length of a receiving frame?***
 
-## Experience 2
+O comprimento de uma *frame* recebida é a soma do comprimento da *Ethernet
+frame* (14 *bytes*) e do comprimento da *IP frame* - valor que pode ser
+inspecionado nos *bytes* 16 e 17.
 
-Again we setup a network but this time is for *tux2* with the the same
-commands as the ones stated above - `ifconfig eth0 down` and `ifconfig eth0 up
-172.16.42.1/24`.
+> ***What is the loopback interface and why is it important?***
 
-After that we'll start configuring the VLANs (Virtual Local Area Network).
-First we create a `VLAN 40` with the commands provided and add the ports
-accordingly, this means that we should run the commands available in the guide.
+A *loopback interface* é uma interface virtual e que está constantemente ativa.
+O protocolo IP reserva o endereços `127.0.0.0/8` para esta interface. Todavia,
+a maioria das implementações do protocolor utilizam o endereço `127.0.0.1` para
+IPv4 e `::1` para IPv6, sendo o nome padrão o `localhost`. 
 
-### VLAN configuration
+A principal finalidade desta interface é redirecionar os pacotes de volta para
+a sua origem. Apesar de aparentar ser uma tarefa simples a sua importância é 
+determinante para testar a infraestrutura da rede e garantir que os diferentes 
+pontos da rede transmitem e que consequentemente permite também testar se o 
+transporte dos pacotes se faz da forma correta.
 
-> How to configure vlanY0?
+## Experiência 2
 
-The configuration of a VLAN is pretty staright forward once we understood its
-concept. Basically, it allows us to group machine logically in a restrict
-broadcast domain. This logical division can be visualized in a very simpe way.
-Imagine an organization with a lot of departments. Logically the infrastructure
-is the same for all the departments, however VLANs allow to have multiple
-networks with that same infrastucture. So here is how to configure a VLAN with
-the CISCO Catalyst 2960 - assuming a that the switch is configuration is the
-default:
+Nesta experiência, o objetivo é configurar as 2 VLANs (*Virtual Local Area 
+Network*) de acordo com o esquema fornecido pelo enunciado.
+
+### Configuração das VLAN
+
+> ***How to configure vlanY0?***
+
+A configuração das VLANs é extremamente simples. Eis os comandos necessários
+para criar a `vlan40`:
 
 ```
 sw> enable
 sw# configure terminal
 sw# vlan 40
 sw(config)# end
-sw# configure terminal
-sw# vlan 41
-sw(config)# end
 ```
 
-This code block shows how to create the VLANs. Then we need to assign the
-correponding ports of each of the *tux* computers.
+Agora, com a VLAN criada, é o momento de adicionar cada um dos *tux* à VLAN
+recentemente criada. Eis mais uma sequência de comandos a executar no switch:
 
 ```
 sw# configure terminal
@@ -140,208 +267,155 @@ sw(config)# interface fastethernet 0/<port for tux4>
 sw(config-if)# switchport mode access
 sw(config-if)# switchport access vlan 40
 sw(config-if)# end
-sw(config)# interface fastethernet 0/<port for tux2>
-sw(config-if)# switchport mode access
-sw(config-if)# switchport access vlan 41
-sw(config-if)# end
 ```
 
-After that the configuration can be checked with the following command:
-`sw# show vlan brief`, where it it possible to see which VLANs are currently
-configured and the respective ports.
+Depois da introdução dos comandos acima, a configuração da VLAN está terminada.
+A verificação da configuração pode ser inspecionada com o comando:
 
-### Pings
+- `sw# show vlan brief`.
 
-> How many broadcast domains are there? How can you conclude it from the logs?
+Com este comando são listadas as VLANs criadas no switch e ainda as respetivas
+portas para cada uma dessas VLANs.
 
-Now it is time to test the VLANs with pings. As expected pinging *tux4* from
-*tux3* is possible, however when we ping *tux2* from *tux3* we get the message
-that netwok is unreachable.
+### Análise dos *logs*
 
-So as one last test we pinged from both *tux3* and *tux2* using the broadcast
-flag `-b` and captured the packets received. After a brief analysis of the
-packet's logs we can conclude that to each VLAN corresponds a broadcast domain.
-That means that when we ping the broadcast adress inside a VLAN only the
-devices inside that VLAN will see that ICMP request packet and proceed to reply
-if the machine configuration allows it[^1].
+> ***How many broadcast domains are there? How can you conclude it from the 
+logs?***
 
-[^1]: With the command `#echo 0 > /proc/sys/ipv4/icmp_echo_ignore_broadcasts`.
+Antes de testar a configuração feita na secção anterior, é importante entender
+o conceito de VLAN, pois desse modo a pergunta torna-se bem menos complicada.
 
+Assim, uma VLAN define uma rede local virtual. Isto significa, que por exemplo
+podemos dividir uma rede física em sub-redes independentes entre si de uma
+maneira lógica. 
 
-## Experience 3
+Um exemplo prático é o de uma organização com vários departamentos. Como se 
+pode facilmente concluir, cada departamento poderá ter uma ou mais VLANs 
+associadas - dividindo os dispositivos nessas redes de uma forma lógica. Outra
+vantagem sobre as VLANs é a de que estas facilitam também a distribuição dos
+pacotes de rede - tornando-a mais eficiente.
 
-After reading the configuration for the CISCO router the answer to the proposed
-questions:
+Com o conceito de VLAN discutido é agora momento de verificar a configuração
+feita acima. Portanto, a partir do *tux3* executamos o `ping` para o *tux4* e
+verificamos que ambos os computadores estão conectados. No entanto, o mesmo não
+se sucede quando o `ping` é executado para o *tux2* - surge a mensagem `Network
+unreachable`.
 
-### Analysing the configuration
+Agora, para um último teste executamos um `ping` com a opção *broadcast* 
+(`-b`) nos computadores *tux3* e *tux2*. A opção *broadcast* envia um pacote
+para todos os dispositivos de uma determinada rede - pelo endereço próprio para
+o efeito o `.255` (para IPv4). Nota ainda, para o facto de que, por padrão, os
+*hosts* Linux não responderem aos pacotes de *broadcast* ICMP, ou seja, é
+preciso executar previamente o comando:
 
-> How to configure a static route in a commercial router?
+- `# echo 0 > /proc/sys/ipv4/icmp_echo_ignore_broadcasts`.
 
-1. Router name is `gnu-rtr1` that can be seen in the line `hostname gnu-rtr1`;
-2. There 2 FastEthernet ports available with the numbers 0 and 1. Here is the
-code block that tells us that:
+Analisando as capturas efetuadas, surgem 2 observações pertinentes:
 
-    2.1 
-    ```
-    interface FastEthernet0/0
-     ...
-    interface FastEthernet0/1
-     ...
-    ```
-3. The configured IP adresses are also available in the same section of the 
-router's configuration. We can conclude that the mask of each IP adress is 24
-bits.
-    
-    3.1
-    ```
-     ip address 172.16.30.1 255.255.255.0
-     ...
-     ip address 172.16.254.45 255.255.255.0
-     ...
-    ```
+1. Quando o `ping` tem origem no *tux3* (`172.16.40.1`) obtemos uma resposta do
+*tux4* (`172.16.40.254`);
+2. Quando o `ping` tem origem no *tux2* (`172.16.41.1`) nunca obtemos qualquer
+resposta.
 
-4. The configured routes are also available in the lines below. These are
-static routes. In the example below, all the packets with the destination
-of 172.16.40.0/24 go to 172.16.30.2 (outside), otherwise they go to 
-172.16.254.1 (inside).
-    
-    4.1
-    ```
-    ip route 0.0.0.0 0.0.0.0 172.16.254.1
-    ip route 172.16.40.0 255.255.255.0 172.16.30.2
-    ```
+Deste modo, e tendo em conta o esquema fornecido, verifica-se que para cada
+VLAN está associado um domínio de *broadcast*. Portanto, com 2 VLANs (`vlan40`
+e `vlan41`) existem 2 domínios de *broadcast*.
 
-### NAT Configuration
+## Experiência 3
 
-> How to configure NAT in a commercial router?
+Nesta experiência, o objetivo é compreender a configuração do router CISCO e
+determinar os aspetos mais relevantes da mesma, bem como, o funcionamento do
+DNS (*Domain Server Name*).
 
-1. The connected interface to the internet is the one in which NAT is set to
-outside meaning that in the case of the provided configuration it is visible
-with the code block below.
+### Análise da configuração do router
 
-    1.1
-    ```
-    interface  FastEthernet0/1
-    ...
-    nat outside
-    ...
-    ```
+> ***How to configure a static route in a commercial router?***
 
-2. The available IP adresses for NATing are given by the command `ip nat pool`.
-In the given file configuration we can see that the pool ranges from 
-`172.16.254.45/24` to `172.16.254.45/24` meaning that there is only 1 adress
-available.
+A configuração de uma rota estática no router apenas requer 1 único comando,
+pelo que é extremamente simples:
 
-3. The router is using overloading that can be checked in the following line:
-`ip nat inside source list 1 pool ovrld overload`.
+- `rtr# ip route 0.0.0.0 0.0.0.0 172.16.254.1`
 
-> What does NAT do?
+Por exemplo, o comando acima define uma *default route* com a *gateway* em
+`172.16.254.1`, qualquer pacote sem rota definida na tabela do router seguirá
+para o endereço `172.16.254.1`.
 
-NAT (Network Address Translation) works as a intermediary between an internal
-network and the internet. That means that in on of the ends (`nat inside`) the 
-router will receive private addresses and translate them to an internet address 
-to be able to comunicate with the outside. The reverse occurs on the other end 
-of the NAT (`nat outside`). Another aspect to consider is the presence of the 
-MAC adresses and ports which is necessary to deliver the packets correctly to 
-each of the computers inside the private network.
+> ***How to configure NAT in a commercial router?***
 
-### DNS setup
+Outra vez, a configuração da NAT no router requer um par de comandos:
 
-> How to configure the DNS service at an host?
-> What packets are exchanged by DNS and what information is transported?
+1. Em modo priveligiado, acedemos à interface pretendida, por exemplo:
+    - `rtr(config)# interface FastEthernet0/1`;
+2. Configuramos o tipo de NAT:
+    - `rtr(config-if)# nat <inside | outside>`.
 
-DNS stands for Domain Name Resolution. Is is a mechanism that transform human
-readable adresses in numeric adresses. On the first test (`ping youtubas`)
-there were no DNS packets since we inserted the line `142.250.200.142 youtubas`
-in the `/etc/hosts` file, which is a static DNS resolver in ever host. Then,
-on the second test we could intercept DNS query packets to the default DNS
-server, usually provided by the host internet service provider. Finally, in the
-third test we switched the DNS server to 9.9.9.9 (provided by Quad9) and
-captured some packets, again we can see DNS query packets with the destination
-of the recently configured DNS server (9.9.9.9).
+> ***What does NAT do?***
 
-### Linux Routing
+NAT, por extenso, *Network Addresss Translation* funciona como um intermediário
+entre uma rede interna e a internet traduzindo os endereços privados em
+endereços públicos - para onde os dispositivos externos a essa rede possam
+enviar os pacotes pretendidos. 
 
-To check the current routes in the system we shall use the `route -n` command.
-The output of the command is the follwing:
+De um lado da NAT gere-se os endereços privados (`nat inside`), do lado oposto
+(`nat outside`) lida-se com endereços públicos. 
 
-```
-Kernel IP routing table
-Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
-0.0.0.0         192.168.1.1     0.0.0.0         UG    100    0        0 eno2
-192.168.1.0     0.0.0.0         255.255.255.0   U     100    0        0 eno2
-```
+Contudo, para que a NAT funcione devidamente é necessário que os pacotes que
+por lá passam possuam um campo com o endereço MAC e outro com a porta que possa
+distinguir tanto a origem como o alvo dos pacotes. Isto acontece porque na 
+internet os dispositivos na rede interna possuem o mesmo endereço IP - no caso
+do diagrama fornecido o `172.16.30.2`.
 
-As it is visible the default gateway here is `192.168.1.1`. Now it is requested
-to delete the dafault route which can be performed with `route del default`,
-this command requires elevated priveliges. After that the output of `route -n`
-is similiar to:
+### Configuração do DNS
 
-```
-Kernel IP routing table
-Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
-192.168.1.0     0.0.0.0         255.255.255.0   U     100    0        0 eno2
-```
+DNS, sigla para *Domain Name System*, é um sistema hierárquico e distribuído
+para a resolução de nomes de domínio, por outras palavras, traduz um nome 
+(`google.com`) num endereço IP (`142.250.200.142`).
 
-That also means that if we try to check connectivity with `traceroute` we will
-confirm that it is not possible to reach any adress whose destination is
-`192.168.1.0` since that there is no default route. The output given by
-`traceroute` is:
+> ***How to configure the DNS service at an host?***
 
-```
-traceroute to 104.17.113.188 (104.17.113.188), 30 hops max, 60 byte packets
-connect: Network is unreachable
-```
+A configuração do DNS pode ser feita de forma estática no ficheiro 
+`/etc/hosts`, ou então no ficheiro `/etc/resolv.conf` onde é possível alterar
+o servidor DNS.
 
-Now, let's add a route to `104.17.113.188`. It can be done with:
-`route add 104.17.113.188 gw 192.168.1.1 eno2`[^2]. And get the following
-output from `route -n`:
+> ***What packets are exchanged by DNS and what information is transported?***
 
-```
-Kernel IP routing table
-Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
-104.17.113.188  192.168.1.1     255.255.255.255 UGH   0      0        0 eno2
-192.168.1.0     0.0.0.0         255.255.255.0   U     100    0        0 eno2
-```
+Os pacotes de DNS trocados na durante a resolução de um nome de domínio
+representam as interrogações efetuadas ao sistema DNS. Alguns dos componentes
+que fazem parte do pacote são:
 
-[^2]: The last argument represents a network interface. It might change from
-computer to computer.
+- `NAME`: nome do domínio;
+- `TYPE`: tipo de RR (*resource record*);
+- `CLASS`: código de classe (`0x0001` para `IN` ou internet).
 
-After that we can run traceroute and verify that we can indeed connect use the
-recently created route:
+### Linux *routing*
 
-```
-traceroute to 104.17.113.188 (104.17.113.188), 30 hops max, 60 byte packets
- 1  192.168.1.1  2.214 ms  3.307 ms  0.588 ms
- 2  * * *
- 3  * * *
- 4  * * *
- 5  104.17.113.188  9.292 ms  9.869 ms  10.355 ms
-```
-> What ICMP packets are observed and why?
+> ***What ICMP packets are observed and why?***
 
-Capturing the packets we can verify that exist ICMP packets. Basically, we must
-know how `traceroute` works in order to understand such existence.
-This packets are the responses sent by the multiple hops on the way due to the
-fact that the packet "died" along the way because of TTL (Time To Leave). As a
-plus we were able to check that those ICMP packets message are the following:
+A presença dos pacotes ICMP gerados pelo `traceroute` surge de uma maneira
+muito peculiar e particular. Essencialmente, a forma com que o `traceroute` 
+executa a sua função é incrementando progressivamente o valor do campo TTL 
+(*Time To Leave*), presente no datagrama UDP, e enviando o número de pacotes 
+necessários até atingir o destino pretendido.
 
-`Time-to-live exceeded (Time to live exceeded in transit)`
+O valor TTL decrementa em cada *hop* até 0, quando atinge esse valor o pacote é
+descartado e uma mensagem é enviada de volta ao emissor com dados relativos a
+essa falha. No wireshark surge, também, a seguinte mensagem:
 
-Remember that this `traceroute` is essencially an "hack" of the protocol!
+- `Time-to-live exceeded (Time to live exceeded in transit)`.
 
-> What are the IP and MAC addresses associated to ICMP packets and why?
+> ***What are the IP and MAC addresses associated to ICMP packets and why?***
 
-Another important aspect about the ICMP packets is that it contains the MAC and
-IP adresses from both the source and the target to allow the correct
-distribution of the packets inside source's and target's LANs.
+Mais uma vez, a presença dos endereços IP e MAC, tanto da origem como do 
+destino, nos pacotes ICMP acontece de modo a permitir a correta distribuição 
+desses pacotes.
 
-> What routes are there in your machine? What are their meaning?
+> ***What routes are there in your machine? What are their meaning?***
 
-In conclusion, the routes in a machine can be visualized with the command 
-`route -n`. That command provides a table of routes which consist in directing 
-a group of packets whose destination fall in a given range in the correct 
-gateway. If we take a look at the following route:
+As rotas presentes numa máquina Linux podem ser visualizadas pelo comando:
+
+- `route -n`. 
+
+Eis o *output* gerado:
 
 ```
 Kernel IP routing table
@@ -349,50 +423,81 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 104.17.113.188  192.168.1.1     255.255.255.255 UGH   0      0        0 eno2
 ```
 
-we are able to determine that the packets directed to `104.17.113.188` should
-go via the gateway `192.168.1.1`. The Genmask determines the destination
-adresses range, in this case, since it is `255.255.255.255` that means that all
-32 bits of the destination must match meaning that `104.17.113.188` is the only
-and only one adress which falls in the range.
+Neste caso em particular, todos os pacotes com destino a `104.17.113.188/32`, o
+que significa exatamente o endereço `104.17.113.188` deve seguir pela
+*gateway*, ou seja, pelo endereço `192.168.1.1`.
 
-## Experience 4
+## Experiência 4
 
-* Make the 2 VLANs (vlan 40 and vlan 41) and add the respective ports
-* Run `ifconfig` without params and retrieve the MAC and IP adresses on *tux4*
-    * The value of the MAC address is on the line that begins with `ether`.
-    * The value of the IP address in on the line that begins with `inet`.
+Nesta experiência, ocorre o culminar de todas as experiências anteriores. O
+objetivo aqui é configurar totalmente a rede interna com as VLANs e a NAT para
+que os computadores dessa rede interna possar aceder à internet.
 
-```
-eth0:
-    ...
-    inet 172.16.40.254 netmask 255.255.255.0 broadcast 172.16.40.255
-    ether 00:21:5a:5a:7b:ea
-    ...
-eth1:
-    ...
-    inet 172.16.41.253 netmask 255.255.255.0 broadcast 172.16.41.255
-    ether 00:c0:df:25:1a:f4
-    ...
-```
+### Linux router
 
-* Now configure the routes on *tux3* and *tux2* with the provived commands
+> ***What routes are there in the tuxes? What are their meaning?***
+
+> ***What information does an entry of the forwarding table contain?***
+
+Após a configuração das VLANs e a introdução das rotas necessárias, fornecidas
+no enunciado, o comando `route -n` deve ser executado de modo a listar as rotas
+em cada um dos *tux*. Para o *tux3*, por exemplo as rotas devem ser as 
+seguintes:
 
 ```
-# on tux3
-route add -net 172.16.41.0/24 gw 172.16.40.254
-# on tux2
-route add -net 172.16.40.0/24 gw 172.16.41.253
-```
-
-* Check the routes on the 3 tuxes
-
-```
+Kernel IP routing table
 Destination     Gateway         Genmask       Flags Metric  Ref   Use Iface
-172.16.40.0     172.16.41.253   255.255.255.0 UG    0       0       0 eth0      # tux2
-172.16.41.0     0.0.0.0         255.255.255.0 U     0       0       0 eth0      # tux2
-172.16.40.0     0.0.0.0         255.255.255.0 U     0       0       0 eth0      # tux3
-172.16.41.0     172.16.40.254   255.255.255.0 U     0       0       0 eth0      # tux3
-172.16.40.0     0.0.0.0         255.255.255.0 U     0       0       0 eth0      # tux4
-172.16.41.0     0.0.0.0         255.255.255.0 U     0       0       0 eth1      # tux4
+0.0.0.0         172.16.40.254   0.0.0.0       U     0       0       0 eth0
+172.16.40.0     0.0.0.0         255.255.255.0 U     0       0       0 eth0
+172.16.41.0     172.16.40.254   255.255.255.0 U     0       0       0 eth0
 ```
+
+Como se observa existem 3 rotas cada uma com o seu significado:
+
+1. *Default route*. Rota usada caso o destino do pacote não encontre 
+correspondência em nehuma outra - usada pelos pacotes com um destino fora da
+rede interna;
+2. Rota para a própria rede, ou seja, para a mesma VLAN - vlan40;
+3. Rota para vlan41, onde se encontra o *tux2*.
+
+> ***What ARP messages, and associated MAC addresses, are observed and why?***
+
+As mensagens ARP, como vimos na experiência 1, permitem determinar a quem um
+determinado pacote deve ser entregue, dentro de uma mesma rede.
+
+Aqui esse tipo de mensagens surge, pois, as entradas das tabelas ARP foram
+previamente apagadas. Desse modo, os pacotes ARP surgem quando ocorre o
+encaminhamento de um pacote mas o próximo *hop* ainda não está em cache - não
+existe uma entrada na tabela ARP para esse *hop*. Finalmente, a presença dos
+endereços MAC nesses pacotes é discutida na experiência 1.
+
+### Cisco router
+
+> ***What are the paths followed by the packets in the experiments carried out and why?***
+
+Os caminhos seguidos pelos pacotes dependem da tabela de encaminhamento em cada
+um dos computadores. 
+
+Quando ambos os computadores encontram-se na mesma VLAN, o encaminhamento é 
+direto - baseado no endereço MAC de destino. Quando esse não é o caso, é 
+preciso fazer uma análise mais cuidada. Por exemplo, um pacote que tenha origem
+no *tux3* e cujo destino seja o *tux2* ou outro computador na internet precisa
+obrigatoriamente de sair pelo *tux4*. Depois as rotas do *tux4* ditam qual a
+próxima paragem - *tux2* ou o router.
+
+# Conclusão
+
+Concluindo, este segundo trabalho prático foi um grande passo no que toca à
+aprendizagem sobre redes IP. O balanço é muito positivo, uma vez que, todos os
+objetivos propostos pelo corpo docente da unidade curricular - mesmo sendo 
+desafiantes - foram alcançados com êxito.
+
+# Referências
+
+- [Modelo OSI](https://en.wikipedia.org/wiki/OSI_model)
+- [Network Programming](https://beej.us/guide/bgnet/html/)
+- [Address Resolution Protocol](https://en.wikipedia.org/wiki/Address_Resolution_Protocol)
+- [Virtual LAN](https://en.wikipedia.org/wiki/Virtual_LAN)
+- [Network Address Translation](https://en.wikipedia.org/wiki/Network_address_translation)
+- [Domain Name System](https://en.wikipedia.org/wiki/Domain_Name_System)
 
