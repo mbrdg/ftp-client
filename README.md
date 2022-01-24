@@ -497,6 +497,7 @@ desafiantes - foram alcançados com êxito.
 - [Virtual LAN](https://en.wikipedia.org/wiki/Virtual_LAN)
 - [Network Address Translation](https://en.wikipedia.org/wiki/Network_address_translation)
 - [Domain Name System](https://en.wikipedia.org/wiki/Domain_Name_System)
+- [CISCO Router Documentation](https://www.cisco.com/c/en/us/td/docs/routers/access/1900/software/configuration/guide/Software_Configuration/routconf.html)
 
 \newpage
 
