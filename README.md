@@ -1,7 +1,4 @@
-% Redes de Computadores - FTP e configuração da rede do laboratório
-% Miguel Rodrigues (up201906042@edu.fe.up.pt); Nuno Castro (up202003324@edu.fe.up.pt)
-
-\newpage
+# Redes de Computadores - FTP e configuração da rede do laboratório
 
 # Sumário
 
@@ -304,7 +301,7 @@ unreachable`.
 Agora, para um último teste executamos um `ping` com a opção *broadcast* 
 (`-b`) nos computadores *tux3* e *tux2*. A opção *broadcast* envia um pacote
 para todos os dispositivos de uma determinada rede - pelo endereço próprio para
-o efeito o `.255` (para IPv4). Nota ainda, para o facto de que, por padrão, os
+o efeito - `.255` (para IPv4). Nota ainda, para o facto de que, por padrão, os
 *hosts* Linux não responderem aos pacotes de *broadcast* ICMP, ou seja, é
 preciso executar previamente o comando:
 
@@ -931,4 +928,9 @@ fi
 
 Os *logs* encontram-se no diretório `doc/logs` e podem ser consultados no 
 *wireshark*.
+
+---
+
+- [Miguel Rodrigues](mailto:up201906042@edu.fe.up.pt)
+- [Nuno Castro](mailto:up20200332@edu.fe.up.pt)
 
