@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -Wall -Werror -pedantic -g
+CFLAGS = -Wall -Werror -pedantic -g -O3
 
 all: download
 

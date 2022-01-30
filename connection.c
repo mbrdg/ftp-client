@@ -52,7 +52,7 @@ geturl(const char *url, const unsigned short port)
         char l[128];
         sscanf(url, "ftp://%128[^/]/%512s", l, u->path);
 
-        strncpy(u->host, l, strlen(l));
+        strcpy(u->host, l);
         strncpy(u->user, anon, 10);
         strncpy(u->pass, "", 1);
         u->port = port;
@@ -187,8 +187,8 @@ passive(int sockfd, const URL *u)
 
         url = geturl(addr, ip[4] * 256 + ip[5]);
         if (strncmp(u->user, anon, strlen(anon)) != 0) {
-                strncpy(url->user, u->user, strlen(u->user));
-                strncpy(url->pass, u->pass, strlen(u->pass));
+                strcpy(url->user, u->user);
+                strcpy(url->pass, u->pass);
         }
 
         return url;
