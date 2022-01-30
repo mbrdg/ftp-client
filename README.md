@@ -499,8 +499,6 @@ desafiantes - foram alcançados com êxito.
 - [Domain Name System](https://en.wikipedia.org/wiki/Domain_Name_System)
 - [CISCO Router Documentation](https://www.cisco.com/c/en/us/td/docs/routers/access/1900/software/configuration/guide/Software_Configuration/routconf.html)
 
-\newpage
-
 # Anexos
 
 ## Código-fonte
